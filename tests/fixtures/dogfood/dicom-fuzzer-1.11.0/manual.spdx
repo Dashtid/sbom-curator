@@ -6,10 +6,11 @@ DocumentNamespace: https://example.invalid/dicom-fuzzer-1.11.0/manual
 Creator: Tool: hand-curated
 Creator: Person: David Dashti
 Created: 2026-04-29T00:00:00Z
-DocumentComment: <text>Hand-curated SBOM for dicom-fuzzer 1.11.0. Lists direct
-runtime dependencies declared in pyproject.toml plus two vendored components
-that no scanner can see. Used as the "manual" side of sbom-overlay's dogfood
-reconciliation fixture.</text>
+DocumentComment: <text>Hand-curated SBOM for dicom-fuzzer 1.11.0. Models the
+slim-manual philosophy: only lists components a scanner cannot see (vendored
+binaries, statically linked libraries). Direct PyPI dependencies declared in
+pyproject.toml are deliberately omitted because Syft already finds them.
+See docs/WORKFLOW.md for the curator's full guide.</text>
 
 PackageName: dicom-fuzzer
 SPDXID: SPDXRef-Package-dicom-fuzzer
@@ -18,97 +19,6 @@ PackageDownloadLocation: NOASSERTION
 PackageLicenseConcluded: MIT
 PackageLicenseDeclared: MIT
 PackageSupplier: Person: David Dashti
-
-PackageName: pydicom
-SPDXID: SPDXRef-Package-pydicom
-PackageVersion: 3.0.2
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: MIT
-PackageLicenseDeclared: MIT
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/pydicom@3.0.2
-
-PackageName: pynetdicom
-SPDXID: SPDXRef-Package-pynetdicom
-PackageVersion: 3.0.4
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: MIT
-PackageLicenseDeclared: MIT
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/pynetdicom@3.0.4
-
-PackageName: numpy
-SPDXID: SPDXRef-Package-numpy
-PackageVersion: 2.3.5
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: BSD-3-Clause
-PackageLicenseDeclared: BSD-3-Clause
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/numpy@2.3.5
-
-PackageName: pydantic
-SPDXID: SPDXRef-Package-pydantic
-PackageVersion: 2.0.0
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: MIT
-PackageLicenseDeclared: MIT
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/pydantic@2.0.0
-PackageComment: <text>Manual SBOM lists the pyproject.toml floor (>=2.0.0).
-Syft sees the actually-installed version. Demonstrates the In-both-with-
-version-disagreement reconciliation bucket.</text>
-
-PackageName: pydantic-settings
-SPDXID: SPDXRef-Package-pydantic-settings
-PackageVersion: 2.12.0
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: MIT
-PackageLicenseDeclared: MIT
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/pydantic-settings@2.12.0
-
-PackageName: python-dotenv
-SPDXID: SPDXRef-Package-python-dotenv
-PackageVersion: 1.2.1
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: BSD-3-Clause
-PackageLicenseDeclared: BSD-3-Clause
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/python-dotenv@1.2.1
-
-PackageName: structlog
-SPDXID: SPDXRef-Package-structlog
-PackageVersion: 25.5.0
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: Apache-2.0 OR MIT
-PackageLicenseDeclared: Apache-2.0 OR MIT
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/structlog@25.5.0
-
-PackageName: rich
-SPDXID: SPDXRef-Package-rich
-PackageVersion: 14.2.0
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: MIT
-PackageLicenseDeclared: MIT
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/rich@14.2.0
-
-PackageName: tqdm
-SPDXID: SPDXRef-Package-tqdm
-PackageVersion: 4.67.1
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: MIT
-PackageLicenseDeclared: MIT
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/tqdm@4.67.1
-
-PackageName: cryptography
-SPDXID: SPDXRef-Package-cryptography
-PackageVersion: 46.0.7
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: Apache-2.0 OR BSD-3-Clause
-PackageLicenseDeclared: Apache-2.0 OR BSD-3-Clause
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/cryptography@46.0.7
-
-PackageName: psutil
-SPDXID: SPDXRef-Package-psutil
-PackageVersion: 7.1.3
-PackageDownloadLocation: NOASSERTION
-PackageLicenseConcluded: BSD-3-Clause
-PackageLicenseDeclared: BSD-3-Clause
-ExternalRef: PACKAGE-MANAGER purl pkg:pypi/psutil@7.1.3
 
 PackageName: internal-dicom-codec
 SPDXID: SPDXRef-Package-internal-dicom-codec
@@ -119,8 +29,7 @@ PackageLicenseDeclared: MIT
 PackageSupplier: Organization: Internal
 PackageComment: <text>Internal C++ DICOM codec statically linked into the
 fuzzer's native extension. No package manifest references this; only a
-hand-curated SBOM can record it. Demonstrates the Only-in-manual
-reconciliation bucket.</text>
+hand-curated SBOM can record it.</text>
 
 PackageName: vendored-zlib
 SPDXID: SPDXRef-Package-vendored-zlib
@@ -129,7 +38,6 @@ PackageDownloadLocation: NOASSERTION
 PackageLicenseConcluded: Zlib
 PackageLicenseDeclared: Zlib
 PackageComment: <text>zlib source copy bundled under third_party/zlib/, not
-visible to any scanner. Demonstrates the Only-in-manual bucket alongside the
-internal codec entry.</text>
+visible to any scanner.</text>
 
 Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-Package-dicom-fuzzer
