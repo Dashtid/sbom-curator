@@ -53,9 +53,9 @@ lands at `<output-dir>/<name>-overlay.md`. Exit code is `0` on success,
 ## Try it
 
 The repo ships a real fixture pair under
-`tests/fixtures/dogfood/dicom-fuzzer-1.11.0/` — a hand-written manual SBOM
-plus a Syft scan of the project venv, shaped to seed every reconciliation
-bucket on purpose.
+`tests/fixtures/dogfood/dicom-fuzzer-1.11.0/` — a slim hand-written manual
+SBOM (only the components Syft can't see) plus a Syft scan of the
+project's installed venv. Run:
 
 ```bash
 sbom-overlay reconcile \
@@ -68,14 +68,17 @@ Terminal:
 
 ```text
 [+] wrote artifacts/dicom-fuzzer-1.11.0-overlay.md
-[+] in both, agree: 10
-[!] version disagreements: 1
-[!] license disagreements: 4
-[!] only in Syft: 122
+[+] in both, agree: 0
+[!] version disagreements: 0
+[!] license disagreements: 0
+[!] only in Syft: 133
 [i] only in manual: 2
 ```
 
-The report itself is a Markdown file with one section per bucket:
+This is the **healthy shape**: a small `Only in manual` bucket (the
+vendored entries), a large `Only in Syft` bucket (everything Syft
+found, which the curator correctly didn't re-list), no overlap, no
+disagreements. The Markdown report itself:
 
 ```markdown
 # SBOM reconciliation report — dicom-fuzzer-1.11.0
@@ -83,10 +86,10 @@ The report itself is a Markdown file with one section per bucket:
 ## Summary
 
 - Only in manual: 2
-- Only in Syft: 122
-- In both, agree on version: 10
-- Version disagreements: 1
-- License disagreements: 4
+- Only in Syft: 133
+- In both, agree on version: 0
+- Version disagreements: 0
+- License disagreements: 0
 
 ## Only in manual
 
@@ -97,13 +100,12 @@ The report itself is a Markdown file with one section per bucket:
 
 ## Version disagreements
 
-| Name | Manual | Syft |
-| --- | --- | --- |
-| pydantic | 2.0.0 | 2.12.5 |
+(none)
 ```
 
-…and so on for the other buckets. Empty buckets render as `(none)` so
-the report's diff is stable run-to-run.
+Empty buckets render as `(none)` so the report's diff is stable
+run-to-run. See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the full
+curator guide and the slim-manual philosophy.
 
 ## v1 limitations (deliberate)
 
