@@ -3,17 +3,17 @@ from pathlib import Path
 import click
 from rich.console import Console
 
-from sbom_overlay import __version__
-from sbom_overlay.parsers.spdx import SpdxParseError, load
-from sbom_overlay.reconcile.diff import reconcile as reconcile_components
-from sbom_overlay.report.markdown import render
-from sbom_overlay.support.log import setup_logging
+from sbom_curator import __version__
+from sbom_curator.parsers.spdx import SpdxParseError, load
+from sbom_curator.reconcile.diff import reconcile as reconcile_components
+from sbom_curator.report.markdown import render
+from sbom_curator.support.log import setup_logging
 
 console = Console()
 
 
 @click.group()
-@click.version_option(__version__, prog_name="sbom-overlay")
+@click.version_option(__version__, prog_name="sbom-curator")
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug-level logging.")
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool) -> None:

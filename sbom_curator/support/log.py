@@ -12,7 +12,7 @@ def strip_ansi(text: str) -> str:
 def setup_logging(verbose: bool = False, log_dir: Path | None = None) -> None:
     """Configure root logger. Console at INFO/DEBUG, optional file sink."""
     level = logging.DEBUG if verbose else logging.INFO
-    root = logging.getLogger("sbom_overlay")
+    root = logging.getLogger("sbom_curator")
     root.setLevel(level)
     root.propagate = False
 
@@ -27,7 +27,7 @@ def setup_logging(verbose: bool = False, log_dir: Path | None = None) -> None:
 
     if log_dir is not None:
         log_dir.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_dir / "sbom-overlay.log", encoding="utf-8")
+        file_handler = logging.FileHandler(log_dir / "sbom-curator.log", encoding="utf-8")
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(fmt)
         root.addHandler(file_handler)

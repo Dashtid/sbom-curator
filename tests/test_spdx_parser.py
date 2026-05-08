@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from sbom_overlay.parsers.spdx import SpdxParseError, load
+from sbom_curator.parsers.spdx import SpdxParseError, load
 
 FIXTURES = Path(__file__).parent / "fixtures" / "spdx"
 

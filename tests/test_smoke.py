@@ -2,11 +2,11 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from sbom_overlay import __version__
-from sbom_overlay.cli import cli
-from sbom_overlay.parsers.model import Component
-from sbom_overlay.reconcile.diff import Reconciliation
-from sbom_overlay.support.log import get_logger, setup_logging, strip_ansi
+from sbom_curator import __version__
+from sbom_curator.cli import cli
+from sbom_curator.parsers.model import Component
+from sbom_curator.reconcile.diff import Reconciliation
+from sbom_curator.support.log import get_logger, setup_logging, strip_ansi
 
 DOGFOOD = Path(__file__).parent / "fixtures" / "dogfood" / "dicom-fuzzer-1.11.0"
 
@@ -78,13 +78,13 @@ def test_strip_ansi() -> None:
 
 def test_setup_logging_with_file_sink(tmp_path: Path) -> None:
     setup_logging(verbose=True, log_dir=tmp_path / "logs")
-    log = get_logger("sbom_overlay.test")
+    log = get_logger("sbom_curator.test")
     log.info("hello")
-    log_file = tmp_path / "logs" / "sbom-overlay.log"
+    log_file = tmp_path / "logs" / "sbom-curator.log"
     assert log_file.exists()
 
 
 def test_setup_logging_console_only() -> None:
     setup_logging(verbose=False, log_dir=None)
-    log = get_logger("sbom_overlay.test2")
+    log = get_logger("sbom_curator.test2")
     log.info("hello")

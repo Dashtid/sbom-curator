@@ -1,6 +1,6 @@
-from sbom_overlay.parsers.model import Component
-from sbom_overlay.reconcile.diff import Reconciliation
-from sbom_overlay.report.markdown import render
+from sbom_curator.parsers.model import Component
+from sbom_curator.reconcile.diff import Reconciliation
+from sbom_curator.report.markdown import render
 
 
 def _component(

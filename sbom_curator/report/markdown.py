@@ -1,7 +1,7 @@
 """Render a Reconciliation as a Markdown triage report."""
 
-from sbom_overlay.parsers.model import Component
-from sbom_overlay.reconcile.diff import Reconciliation
+from sbom_curator.parsers.model import Component
+from sbom_curator.reconcile.diff import Reconciliation
 
 
 def render(reconciliation: Reconciliation, *, name: str) -> str:
