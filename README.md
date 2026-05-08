@@ -1,9 +1,9 @@
-# sbom-overlay
+# sbom-curator
 
-[![CI](https://github.com/Dashtid/sbom-overlay/actions/workflows/ci.yml/badge.svg)](https://github.com/Dashtid/sbom-overlay/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Dashtid/sbom-overlay/branch/main/graph/badge.svg)](https://codecov.io/gh/Dashtid/sbom-overlay)
+[![CI](https://github.com/Dashtid/sbom-curator/actions/workflows/ci.yml/badge.svg)](https://github.com/Dashtid/sbom-curator/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Dashtid/sbom-curator/branch/main/graph/badge.svg)](https://codecov.io/gh/Dashtid/sbom-curator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Dashtid/sbom-overlay/badge)](https://scorecard.dev/viewer/?uri=github.com/Dashtid/sbom-overlay)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Dashtid/sbom-curator/badge)](https://scorecard.dev/viewer/?uri=github.com/Dashtid/sbom-curator)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
@@ -26,7 +26,7 @@ This tool produces that triage report.
 | Tool          | Job                                              |
 | ------------- | ------------------------------------------------ |
 | sbom-sentinel | One SBOM in, vulnerability + KEV report out      |
-| sbom-overlay  | Two SBOMs in, reconciliation triage report out   |
+| sbom-curator  | Two SBOMs in, reconciliation triage report out   |
 
 They are complementary, not coupled.
 
@@ -39,7 +39,7 @@ pip install -e .
 ## Usage
 
 ```bash
-sbom-overlay reconcile \
+sbom-curator reconcile \
     --manual product.spdx \
     --syft   product.syft.spdx.json \
     --name   product-1.0.0
@@ -58,7 +58,7 @@ SBOM (only the components Syft can't see) plus a Syft scan of the
 project's installed venv. Run:
 
 ```bash
-sbom-overlay reconcile \
+sbom-curator reconcile \
     --manual tests/fixtures/dogfood/dicom-fuzzer-1.11.0/manual.spdx \
     --syft   tests/fixtures/dogfood/dicom-fuzzer-1.11.0/syft.spdx.json \
     --name   dicom-fuzzer-1.11.0
@@ -131,9 +131,9 @@ pip install -e ".[dev]" || pip install -e .
 pip install pytest pytest-cov ruff mypy bandit
 
 ruff check .
-mypy sbom_overlay
-pytest --cov=sbom_overlay --cov-branch
-bandit -c pyproject.toml -r sbom_overlay
+mypy sbom_curator
+pytest --cov=sbom_curator --cov-branch
+bandit -c pyproject.toml -r sbom_curator
 ```
 
 ## License

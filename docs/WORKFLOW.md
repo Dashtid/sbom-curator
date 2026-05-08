@@ -1,4 +1,4 @@
-# Workflow: using sbom-overlay on real SBOMs
+# Workflow: using sbom-curator on real SBOMs
 
 End-to-end guide for reconciling a hand-curated SPDX SBOM against a
 Syft-generated one. Companion to [ARCHITECTURE.md](ARCHITECTURE.md),
@@ -25,7 +25,7 @@ On a fresh clone, create the structure once:
 mkdir -p artifacts/{manual,syft,reports}
 ```
 
-The structure isn't enforced — sbom-overlay accepts any path through
+The structure isn't enforced — sbom-curator accepts any path through
 its `--manual`, `--syft`, and `--output-dir` flags. The convention is
 just what makes the workflow legible.
 
@@ -83,7 +83,7 @@ Use the philosophy described above when writing your own SBOMs.
 ### 2. Generate the Syft SBOM
 
 Run Syft against the actual product install or build directory. Emit
-SPDX-JSON (not native Syft JSON or CycloneDX — sbom-overlay only
+SPDX-JSON (not native Syft JSON or CycloneDX — sbom-curator only
 parses SPDX):
 
 ```bash
@@ -100,7 +100,7 @@ instead of re-scanning.
 ### 3. Reconcile
 
 ```bash
-sbom-overlay reconcile \
+sbom-curator reconcile \
     --manual artifacts/manual/<name>.spdx \
     --syft   artifacts/syft/<name>.syft.spdx.json \
     --name   <name> \
@@ -124,7 +124,7 @@ syft scan dir:'C:/Program Files/Hermes/Affinity' \
   --source-name affinity --source-version 6.0.0
 
 # Step 3: reconcile
-sbom-overlay reconcile \
+sbom-curator reconcile \
     --manual artifacts/manual/affinity-6.0.0.spdx \
     --syft   artifacts/syft/affinity-6.0.0.syft.spdx.json \
     --name   affinity-6.0.0 \

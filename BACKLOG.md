@@ -1,6 +1,6 @@
 # Backlog
 
-Open work for sbom-overlay. Each item names a **trigger** — the real-world
+Open work for sbom-curator. Each item names a **trigger** — the real-world
 signal that justifies starting it. Nothing here is urgent; items wait for
 their trigger so the codebase stays free of speculative complexity.
 
@@ -49,7 +49,7 @@ forbids that value; the field is optional, so absence is the right way
 to express "unknown"). spdx-tools rejects it correctly but the error
 message is opaque.
 
-A small `sbom-overlay lint manual.spdx` subcommand would catch known
+A small `sbom-curator lint manual.spdx` subcommand would catch known
 spec violations before the reconcile step, with actionable messages
 ("delete the PackageVersion line — the value `NOASSERTION` is not
 permitted; absence means unknown"). Defers the linting story to its
@@ -75,9 +75,9 @@ multi-version installs.
 
 **Trigger:** a real workflow needs to consume CycloneDX. Today
 sbom-sentinel produces CycloneDX for Grype and that pipeline is
-unaffected by us; sbom-overlay is SPDX-on-SPDX by design.
+unaffected by us; sbom-curator is SPDX-on-SPDX by design.
 
-If triggered, add `sbom_overlay/parsers/cyclonedx.py` mirroring the
+If triggered, add `sbom_curator/parsers/cyclonedx.py` mirroring the
 spdx parser shape. The `Component` model is format-agnostic so the
 reconciler and reporter need no changes.
 

@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass
 
-from sbom_overlay.parsers.model import Component
-from sbom_overlay.reconcile.equivalence import licenses_equal, versions_equal
+from sbom_curator.parsers.model import Component
+from sbom_curator.reconcile.equivalence import licenses_equal, versions_equal
 
 
 @dataclass(frozen=True)

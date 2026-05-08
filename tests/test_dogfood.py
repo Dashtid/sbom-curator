@@ -12,8 +12,8 @@ real-world end-to-end anchor.
 
 from pathlib import Path
 
-from sbom_overlay.parsers.spdx import load
-from sbom_overlay.reconcile.diff import reconcile
+from sbom_curator.parsers.spdx import load
+from sbom_curator.reconcile.diff import reconcile
 
 DOGFOOD = Path(__file__).parent / "fixtures" / "dogfood" / "dicom-fuzzer-1.11.0"
 

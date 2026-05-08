@@ -32,13 +32,13 @@ jobs:
         run: ruff check .
 
       - name: Mypy
-        run: mypy sbom_overlay
+        run: mypy sbom_curator
 
       - name: Bandit
-        run: bandit -c pyproject.toml -r sbom_overlay
+        run: bandit -c pyproject.toml -r sbom_curator
 
       - name: Pytest
-        run: pytest --cov=sbom_overlay --cov-branch --cov-report=xml --cov-report=term
+        run: pytest --cov=sbom_curator --cov-branch --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

@@ -1,4 +1,4 @@
-from sbom_overlay.reconcile.equivalence import licenses_equal, versions_equal
+from sbom_curator.reconcile.equivalence import licenses_equal, versions_equal
 
 # ----- versions_equal -----
 

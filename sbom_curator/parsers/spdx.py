@@ -11,7 +11,7 @@ from spdx_tools.spdx.parser.error import SPDXParsingError
 from spdx_tools.spdx.parser.parse_anything import parse_file
 from spdx_tools.spdx.parser.tagvalue.tagvalue_parser import parse_from_file as parse_tag_value
 
-from sbom_overlay.parsers.model import Component, Source
+from sbom_curator.parsers.model import Component, Source
 
 _log = logging.getLogger(__name__)
 
