@@ -1,19 +1,42 @@
 # Workflow: using sbom-curator on real SBOMs
 
-End-to-end guide for reconciling a hand-curated SPDX SBOM against a
-Syft-generated one. Companion to [ARCHITECTURE.md](ARCHITECTURE.md),
-which describes how the tool is built; this file describes how to
-use it.
+End-to-end guide for the curator's loop: maintain one authoritative SPDX
+SBOM (the FDA submission deliverable), and use Syft scans as periodic
+input to keep it current. Companion to [ARCHITECTURE.md](ARCHITECTURE.md),
+which describes how the tool is built; this file describes how to use it.
+
+## Curator philosophy
+
+**The manual SBOM is the deliverable.** It is what your regulator (FDA, in
+the medical-device case) receives, signs, and audits against. It must meet
+the [NTIA minimum baseline](https://www.ntia.gov/sites/default/files/publications/sbom_minimum_elements_report_0.pdf):
+author, timestamp, supplier, component name, version, hash (where
+practical), unique identifier, dependency relationship — for every shipped
+component, including ones a scanner cannot see.
+
+**Syft is input, not a separate artifact.** Each release, scan the build,
+diff the scan against the manual SBOM, decide what to merge. The tool
+makes that diff legible.
+
+This contrasts with two anti-patterns:
+
+- *Slim manual + ship the union.* Listing only vendored/static entries in
+  the manual and treating Syft's output as an "auto-generated supplement"
+  fails NTIA review: the deliverable is one SBOM, and that SBOM has to be
+  comprehensive on its own.
+- *Hand-rewrite every release.* Maintaining the manual from scratch is
+  brittle. Periodic Syft input makes drift visible without taking the
+  curator's pen out of their hand.
 
 ## Working directory
 
-The repo's convention is to keep working SBOMs under `artifacts/` at
-the repo root, organized by function:
+The repo's convention is to keep working SBOMs under `artifacts/` at the
+repo root, organized by function:
 
 ```
 artifacts/
-├── manual/      hand-curated SPDX SBOMs you author
-├── syft/        Syft-generated SPDX SBOMs you scan
+├── manual/      hand-curated SPDX SBOMs you author (the deliverable)
+├── syft/        Syft-generated SPDX SBOMs from each release scan
 └── reports/     reconciliation reports the tool writes
 ```
 
@@ -36,9 +59,9 @@ descriptive (product + version is the obvious choice):
 
 | Stage | Path | Example |
 | --- | --- | --- |
-| Manual SBOM you write | `manual/<name>.spdx` | `manual/affinity-6.0.0.spdx` |
+| Manual SBOM you maintain | `manual/<name>.spdx` | `manual/affinity-6.0.0.spdx` |
 | Syft SBOM you generate | `syft/<name>.syft.spdx.json` | `syft/affinity-6.0.0.syft.spdx.json` |
-| Reconciliation report | `reports/<name>-overlay.md` | `reports/affinity-6.0.0-overlay.md` |
+| Reconciliation report | `reports/<name>-reconcile.md` | `reports/affinity-6.0.0-reconcile.md` |
 
 The `.syft.` infix marks the source so a future Trivy or Tern scan
 (`<name>.trivy.spdx.json`) doesn't collide with the Syft one. The
@@ -47,38 +70,30 @@ filename from it automatically.
 
 ## End-to-end workflow
 
-### 1. Hand-curate the manual SBOM
+### 1. Maintain the manual SBOM
 
 Open `artifacts/manual/<name>.spdx` in a text editor and write SPDX
-2.3 tag-value content.
+2.3 tag-value content. The aim is **comprehensive enough to meet
+NTIA baseline on its own** — that means every component shipped:
 
-**Aim:** the smallest manual SBOM that still misses nothing. Cover
-only what a scanner can't see — vendored binaries, statically linked
-libraries, runtime-loaded plugins, proprietary natives, system
-runtimes installed out-of-band. **Do not re-list what Syft already
-finds.** That's wasted curator effort and adds report noise without
-adding signal.
+- The product itself (root package, declared via `Relationship: ...
+  DESCRIBES ...`).
+- Direct dependencies (PyPI packages, NuGet packages, system libs,
+  whatever the platform's package manifest declares).
+- Transitive dependencies that ship in the released artifact.
+- Components a scanner cannot see: vendored binaries, statically
+  linked libraries, runtime-loaded plugins, proprietary natives,
+  system runtimes installed out-of-band.
 
-A healthy reconciliation has:
-
-- A **small "Only in manual"** bucket — the things you added because
-  Syft can't see them.
-- A **large "Only in Syft"** bucket — the things Syft found that you
-  correctly didn't need to list.
-- A **sparse "in both"** bucket — usually coincidental name
-  collisions, not deliberate duplication.
-
-If "in both" is large, you're double-listing. Slim the manual.
+You don't write all of that from scratch every release — that's what
+the Syft input is for. On the first release, seed the manual from a
+Syft scan plus your knowledge of what Syft missed. On subsequent
+releases, the reconcile report tells you what changed; you merge the
+real changes by hand.
 
 Watch out for `PackageVersion: NOASSERTION` — that value is
 spec-forbidden by SPDX 2.3 §7.3. Omit the field entirely when the
 version is unknown.
-
-The repo's existing dogfood fixture
-([`tests/fixtures/dogfood/dicom-fuzzer-1.11.0/manual.spdx`](../tests/fixtures/dogfood/dicom-fuzzer-1.11.0/manual.spdx))
-intentionally lists redundant entries to exercise every reconciler
-bucket — it's a tool test, not an example of the curator philosophy.
-Use the philosophy described above when writing your own SBOMs.
 
 ### 2. Generate the Syft SBOM
 
@@ -107,16 +122,37 @@ sbom-curator reconcile \
     --output-dir artifacts/reports
 ```
 
-The report lands at `artifacts/reports/<name>-overlay.md`. Read it,
-file action items based on the four buckets (only-in-manual,
-only-in-syft, version disagreements, license disagreements).
+The report lands at `artifacts/reports/<name>-reconcile.md`. Four
+buckets:
+
+- **Only in manual.** Components you have that Syft didn't see —
+  expected for vendored/static entries. Treat anything else as a hint
+  that the entry is stale (the dep was removed) or wrongly named (the
+  scanner sees it under a different name; see the .NET notes in
+  [`BACKLOG.md`](../BACKLOG.md)).
+- **Only in Syft.** Components Syft found that aren't in the manual.
+  Each is a candidate to add to the manual SBOM. Some will be true
+  build-tooling that doesn't ship and can be ignored; the rest belong
+  in the manual.
+- **Version disagreements.** Same component, different version on
+  each side. Usually the Syft side is the truth (it scanned the
+  shipped build); update the manual.
+- **License disagreements.** Same component, different license. Often
+  a recording error in the manual; reconcile against upstream.
+
+Read the report, decide which deltas land in the manual SBOM, edit
+`artifacts/manual/<name>.spdx` directly. The `reconcile` command does
+not rewrite the manual — that's deliberate; an `ingest --apply`
+command may come later but the curator's pen stays in their hand by
+default.
 
 ## Worked example
 
 Concretely, for Affinity 6.0.0:
 
 ```bash
-# Step 1: write artifacts/manual/affinity-6.0.0.spdx by hand
+# Step 1: maintain artifacts/manual/affinity-6.0.0.spdx by hand
+#         (or seed it from the first Syft scan + missing vendored entries)
 
 # Step 2: generate the Syft side
 syft scan dir:'C:/Program Files/Hermes/Affinity' \
@@ -130,5 +166,6 @@ sbom-curator reconcile \
     --name   affinity-6.0.0 \
     --output-dir artifacts/reports
 
-# Read artifacts/reports/affinity-6.0.0-overlay.md
+# Read artifacts/reports/affinity-6.0.0-reconcile.md and merge real
+# deltas into artifacts/manual/affinity-6.0.0.spdx by hand.
 ```

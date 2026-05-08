@@ -7,26 +7,39 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 
-Reconcile a hand-curated SPDX SBOM (the authoritative artifact, e.g. for FDA
-submission) against an automatically generated Syft SBOM. Surfaces components
-the manual SBOM may have missed, and version or license disagreements between
-the two views.
+Curate one authoritative SPDX SBOM — the kind FDA submissions ask for, meeting
+the [NTIA minimum baseline](https://www.ntia.gov/sites/default/files/publications/sbom_minimum_elements_report_0.pdf) —
+and use Syft scans as input to keep it current. The tool reads the manual SBOM
+and a fresh Syft SBOM and tells the curator what changed: new components,
+version drift, license drift.
 
 ## Why
 
-Manual SBOMs catch what scanners can't see (vendored binaries, statically
-linked libraries, runtime-loaded plugins). Scanners catch what humans miss
-(transitive deps, build-time tooling, generated artifacts). Neither is
-complete on its own; the safe artifact is the union, triaged.
+For regulated software (medical-device submissions, supply-chain compliance),
+**one** authoritative SBOM is the deliverable, hand-maintained by a person who
+knows what's actually shipping. Scanners alone don't meet the bar — they miss
+vendored binaries and statically linked libraries — and a hand-rolled SBOM
+written from scratch every release is brittle and expensive to keep honest.
 
-This tool produces that triage report.
+The curator's loop:
+
+1. Maintain `manual.spdx` by hand, comprehensive enough to cover NTIA baseline.
+2. Run Syft against each release build to get a fresh `syft.spdx.json`.
+3. Run sbom-curator to surface deltas: new components, version bumps, license
+   drift, vendored entries Syft can't see.
+4. Decide which deltas land in the manual SBOM. Submit the manual SBOM.
+
+Today this ships the `reconcile` command, which produces a four-bucket diff
+the curator reads and acts on. An `ingest` command — which produces an
+explicit BUMP/ADD/KEEP/PRESERVE edit plan — is the planned headline; see
+[`BACKLOG.md`](BACKLOG.md).
 
 ## Position vs sbom-sentinel
 
-| Tool          | Job                                              |
-| ------------- | ------------------------------------------------ |
-| sbom-sentinel | One SBOM in, vulnerability + KEV report out      |
-| sbom-curator  | Two SBOMs in, reconciliation triage report out   |
+| Tool          | Job                                                           |
+| ------------- | ------------------------------------------------------------- |
+| sbom-sentinel | One SBOM in, vulnerability + KEV report out                   |
+| sbom-curator  | Maintain one authoritative SBOM; ingest from periodic scans   |
 
 They are complementary, not coupled.
 
@@ -47,15 +60,15 @@ sbom-curator reconcile \
 
 `--manual` accepts any SPDX 2.x serialization spdx-tools understands
 (tag-value `.spdx`, JSON, YAML, RDF/XML); `--syft` likewise. The report
-lands at `<output-dir>/<name>-overlay.md`. Exit code is `0` on success,
+lands at `<output-dir>/<name>-reconcile.md`. Exit code is `0` on success,
 `2` on parse failure.
 
 ## Try it
 
 The repo ships a real fixture pair under
-`tests/fixtures/dogfood/dicom-fuzzer-1.11.0/` — a slim hand-written manual
-SBOM (only the components Syft can't see) plus a Syft scan of the
-project's installed venv. Run:
+[`tests/fixtures/dogfood/dicom-fuzzer-1.11.0/`](tests/fixtures/dogfood/dicom-fuzzer-1.11.0/) —
+a hand-written manual SBOM plus a Syft scan of the project's installed venv.
+Run:
 
 ```bash
 sbom-curator reconcile \
@@ -64,48 +77,18 @@ sbom-curator reconcile \
     --name   dicom-fuzzer-1.11.0
 ```
 
-Terminal:
+The terminal prints the four bucket counts (`only in manual`, `only in Syft`,
+`in both / agree`, `version disagreements`, `license disagreements`). The
+report at `artifacts/dicom-fuzzer-1.11.0-reconcile.md` lists the components in
+each bucket. Empty buckets render as `(none)` so the report's diff is stable
+run-to-run.
 
-```text
-[+] wrote artifacts/dicom-fuzzer-1.11.0-overlay.md
-[+] in both, agree: 0
-[!] version disagreements: 0
-[!] license disagreements: 0
-[!] only in Syft: 133
-[i] only in manual: 2
-```
+> The dogfood fixture is currently slim (it lists only what Syft can't see).
+> An upcoming change re-fattens it to model the comprehensive FDA-curator
+> shape this README describes — see [`BACKLOG.md`](BACKLOG.md).
 
-This is the **healthy shape**: a small `Only in manual` bucket (the
-vendored entries), a large `Only in Syft` bucket (everything Syft
-found, which the curator correctly didn't re-list), no overlap, no
-disagreements. The Markdown report itself:
-
-```markdown
-# SBOM reconciliation report — dicom-fuzzer-1.11.0
-
-## Summary
-
-- Only in manual: 2
-- Only in Syft: 133
-- In both, agree on version: 0
-- Version disagreements: 0
-- License disagreements: 0
-
-## Only in manual
-
-| Name | Version | License | PURL |
-| --- | --- | --- | --- |
-| internal-dicom-codec | 1.0.0 | MIT | _n/a_ |
-| vendored-zlib | 1.3.1 | Zlib | _n/a_ |
-
-## Version disagreements
-
-(none)
-```
-
-Empty buckets render as `(none)` so the report's diff is stable
-run-to-run. See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the full
-curator guide and the slim-manual philosophy.
+See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the curator's end-to-end
+guide.
 
 ## v1 limitations (deliberate)
 
@@ -123,6 +106,9 @@ curator guide and the slim-manual philosophy.
 - **No CycloneDX support.** Have Syft emit SPDX
   (`syft scan ... -o spdx-json=...`) — both sides same format, no
   translation layer.
+- **`reconcile` doesn't write back to the manual SBOM.** It produces a
+  report; the curator edits the manual by hand. Auto-rewrite is a planned
+  follow-up but `--apply` will stay opt-in (see `ingest` in `BACKLOG.md`).
 
 ## Development
 

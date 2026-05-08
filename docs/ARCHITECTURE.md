@@ -3,21 +3,25 @@
 ## Problem
 
 A hand-curated SBOM (SPDX 2.3) is the authoritative artifact for regulatory
-submission. A scanner-generated SBOM (Syft, SPDX 2.3 JSON) is the easiest
-artifact to keep up to date but cannot see vendored or statically-linked
-components.
+submission — the FDA, in the medical-device case, expects one SBOM that meets
+the NTIA minimum baseline on its own. Scanners (Syft) can't author that
+artifact: they miss vendored binaries and statically-linked libraries, and
+they can't enrich entries with the supplier/license/relationship metadata a
+regulator expects.
 
-Neither is a complete picture. The safe deliverable is the union, with each
-component triaged by a human.
+But a hand-rolled SBOM written from scratch every release is brittle. The
+practical loop is: keep the manual SBOM authoritative, scan with Syft each
+release, surface deltas the curator merges by hand. sbom-curator produces
+that delta surface.
 
 ## Design
 
 ```
-   manual.spdx.json (authoritative)
+   manual.spdx (authoritative, the deliverable)
             \
              >---  parse  ---  normalize  ---\
             /                                  >---  reconcile  ---  report.md
-   syft.spdx.json (overlay)                  /
+   syft.spdx.json (periodic input)           /
             \                               /
              >---  parse  ---  normalize  -/
 ```
@@ -32,15 +36,21 @@ component triaged by a human.
    more than recall.
 
 3. **Reconcile**. Three buckets:
-   - **Only in manual** — usually fine (vendored, hand-rolled).
-   - **Only in Syft** — likely missing from the manual SBOM. Action item.
+   - **Only in manual** — usually vendored or hand-rolled entries Syft can't
+     see; check for stale entries the curator forgot to remove.
+   - **Only in Syft** — candidate additions to the manual SBOM. Some are
+     build-tooling that doesn't ship and can be ignored; the rest belong in
+     the deliverable.
    - **In both** — cross-check version and license; flag mismatches.
 
 4. **Report**. Markdown, suitable for a PR comment or audit attachment.
 
 ## Out of scope (for v1)
 
-- Generating a merged SBOM. Reconciliation only.
+- Auto-rewriting the manual SBOM. The curator merges deltas by hand. An
+  `ingest` command with an explicit edit plan (BUMP / ADD / KEEP / PRESERVE)
+  is the planned headline; an `--apply` flag, if it ever lands, stays
+  opt-in. See [`BACKLOG.md`](../BACKLOG.md).
 - Vulnerability scanning. That is `sbom-sentinel`'s job.
 - CycloneDX support. v1 is SPDX-on-SPDX. Have Syft emit SPDX (`syft scan ...
   -o spdx-json=...`); a CycloneDX parser is an additive follow-up if a real

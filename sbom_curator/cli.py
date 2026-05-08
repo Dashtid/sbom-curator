@@ -45,7 +45,7 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path) -> None:
     report = render(result, name=name)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    out_path = output_dir / f"{name}-overlay.md"
+    out_path = output_dir / f"{name}-reconcile.md"
     out_path.write_text(report, encoding="utf-8")
 
     agreed = len(result.in_both) - len(result.version_mismatches)
