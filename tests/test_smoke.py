@@ -30,7 +30,7 @@ def test_reconcile_command_writes_report_and_exits_zero(tmp_path: Path) -> None:
         ],
     )
     assert result.exit_code == 0, result.output
-    report_path = out_dir / "dicom-fuzzer-1.11.0-overlay.md"
+    report_path = out_dir / "dicom-fuzzer-1.11.0-reconcile.md"
     assert report_path.exists()
     assert "# SBOM reconciliation report — dicom-fuzzer-1.11.0" in report_path.read_text(
         encoding="utf-8"
