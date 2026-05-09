@@ -5,12 +5,19 @@ DocumentName: dicom-fuzzer 1.11.0 (manual SBOM)
 DocumentNamespace: https://example.invalid/dicom-fuzzer-1.11.0/manual
 Creator: Tool: hand-curated
 Creator: Person: David Dashti
-Created: 2026-04-29T00:00:00Z
+Created: 2026-05-09T00:00:00Z
 DocumentComment: <text>Hand-curated SBOM for dicom-fuzzer 1.11.0. Models the
-slim-manual philosophy: only lists components a scanner cannot see (vendored
-binaries, statically linked libraries). Direct PyPI dependencies declared in
-pyproject.toml are deliberately omitted because Syft already finds them.
-See docs/WORKFLOW.md for the curator's full guide.</text>
+FDA-curator philosophy: comprehensive enough on its own to meet NTIA
+minimum baseline for shipped components, plus vendored entries only a
+hand-curated SBOM can record (statically linked codec, vendored zlib).
+Dev/test tooling (pytest, ruff, mypy, pre-commit, type stubs, packaging
+machinery) is intentionally excluded because it does not ship with the
+product; Syft picks those up from the venv and they land in the report's
+only-in-Syft bucket as expected. Two entries (cffi, packaging) are one
+minor behind the Syft view to exercise the version_mismatches bucket;
+click intentionally disagrees with Syft on license to exercise the
+license_mismatches bucket. See docs/WORKFLOW.md for the curator's
+full guide.</text>
 
 PackageName: dicom-fuzzer
 SPDXID: SPDXRef-Package-dicom-fuzzer
@@ -19,6 +26,394 @@ PackageDownloadLocation: NOASSERTION
 PackageLicenseConcluded: MIT
 PackageLicenseDeclared: MIT
 PackageSupplier: Person: David Dashti
+
+PackageName: aiohappyeyeballs
+SPDXID: SPDXRef-Package-aiohappyeyeballs
+PackageVersion: 2.6.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: PSF-2.0
+PackageLicenseDeclared: PSF-2.0
+
+PackageName: aiohttp
+SPDXID: SPDXRef-Package-aiohttp
+PackageVersion: 3.13.4
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: (Apache-2.0 AND MIT)
+PackageLicenseDeclared: (Apache-2.0 AND MIT)
+
+PackageName: aiosignal
+SPDXID: SPDXRef-Package-aiosignal
+PackageVersion: 1.4.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: LicenseRef-Apache-2.0
+PackageLicenseDeclared: LicenseRef-Apache-2.0
+
+PackageName: annotated-types
+SPDXID: SPDXRef-Package-annotated-types
+PackageVersion: 0.7.0
+PackageDownloadLocation: NOASSERTION
+
+PackageName: attrs
+SPDXID: SPDXRef-Package-attrs
+PackageVersion: 25.4.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: certifi
+SPDXID: SPDXRef-Package-certifi
+PackageVersion: 2025.11.12
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MPL-2.0
+PackageLicenseDeclared: MPL-2.0
+
+PackageName: cffi
+SPDXID: SPDXRef-Package-cffi
+PackageVersion: 1.17.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: charset-normalizer
+SPDXID: SPDXRef-Package-charset-normalizer
+PackageVersion: 3.4.4
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: click
+SPDXID: SPDXRef-Package-click
+PackageVersion: 8.3.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: Apache-2.0
+PackageLicenseDeclared: Apache-2.0
+
+PackageName: colorama
+SPDXID: SPDXRef-Package-colorama
+PackageVersion: 0.4.6
+PackageDownloadLocation: NOASSERTION
+
+PackageName: contourpy
+SPDXID: SPDXRef-Package-contourpy
+PackageVersion: 1.3.3
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause
+PackageLicenseDeclared: BSD-3-Clause
+
+PackageName: cryptography
+SPDXID: SPDXRef-Package-cryptography
+PackageVersion: 46.0.7
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: (Apache-2.0 OR BSD-3-Clause)
+PackageLicenseDeclared: (Apache-2.0 OR BSD-3-Clause)
+
+PackageName: cycler
+SPDXID: SPDXRef-Package-cycler
+PackageVersion: 0.12.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause
+PackageLicenseDeclared: BSD-3-Clause
+
+PackageName: defusedxml
+SPDXID: SPDXRef-Package-defusedxml
+PackageVersion: 0.7.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: LicenseRef-PSFL
+PackageLicenseDeclared: LicenseRef-PSFL
+
+PackageName: fonttools
+SPDXID: SPDXRef-Package-fonttools
+PackageVersion: 4.61.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: frozenlist
+SPDXID: SPDXRef-Package-frozenlist
+PackageVersion: 1.8.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: Apache-2.0
+PackageLicenseDeclared: Apache-2.0
+
+PackageName: greenlet
+SPDXID: SPDXRef-Package-greenlet
+PackageVersion: 3.2.4
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: (MIT AND Python-2.0)
+PackageLicenseDeclared: (MIT AND Python-2.0)
+
+PackageName: idna
+SPDXID: SPDXRef-Package-idna
+PackageVersion: 3.11
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause
+PackageLicenseDeclared: BSD-3-Clause
+
+PackageName: jinja2
+SPDXID: SPDXRef-Package-jinja2
+PackageVersion: 3.1.6
+PackageDownloadLocation: NOASSERTION
+
+PackageName: kiwisolver
+SPDXID: SPDXRef-Package-kiwisolver
+PackageVersion: 1.4.9
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: LicenseRef-18f9b048c679a534ccd8c62e75f670bbb91ea88ab8fc6c162512358e8cb83f7d
+PackageLicenseDeclared: LicenseRef-18f9b048c679a534ccd8c62e75f670bbb91ea88ab8fc6c162512358e8cb83f7d
+
+PackageName: markdown-it-py
+SPDXID: SPDXRef-Package-markdown-it-py
+PackageVersion: 3.0.0
+PackageDownloadLocation: NOASSERTION
+
+PackageName: markupsafe
+SPDXID: SPDXRef-Package-markupsafe
+PackageVersion: 3.0.3
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause
+PackageLicenseDeclared: BSD-3-Clause
+
+PackageName: matplotlib
+SPDXID: SPDXRef-Package-matplotlib
+PackageVersion: 3.10.7
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: LicenseRef-cd062fca27f575a726b633cc431dfa2e97f29899a6f811ab0662c6840ff19231
+PackageLicenseDeclared: LicenseRef-cd062fca27f575a726b633cc431dfa2e97f29899a6f811ab0662c6840ff19231
+
+PackageName: mdurl
+SPDXID: SPDXRef-Package-mdurl
+PackageVersion: 0.1.2
+PackageDownloadLocation: NOASSERTION
+
+PackageName: multidict
+SPDXID: SPDXRef-Package-multidict
+PackageVersion: 6.7.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: LicenseRef-Apache-License-2.0
+PackageLicenseDeclared: LicenseRef-Apache-License-2.0
+
+PackageName: numpy
+SPDXID: SPDXRef-Package-numpy
+PackageVersion: 2.3.5
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause AND BSD-3-Clause-Open-MPI AND GPL-3.0-only AND GPL-3.0-or-later
+PackageLicenseDeclared: BSD-3-Clause AND BSD-3-Clause-Open-MPI AND GPL-3.0-only AND GPL-3.0-or-later
+
+PackageName: packaging
+SPDXID: SPDXRef-Package-packaging
+PackageVersion: 24.2
+PackageDownloadLocation: NOASSERTION
+
+PackageName: pandas
+SPDXID: SPDXRef-Package-pandas
+PackageVersion: 2.3.3
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause
+PackageLicenseDeclared: BSD-3-Clause
+
+PackageName: pillow
+SPDXID: SPDXRef-Package-pillow
+PackageVersion: 12.2.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT-CMU
+PackageLicenseDeclared: MIT-CMU
+
+PackageName: plotly
+SPDXID: SPDXRef-Package-plotly
+PackageVersion: 6.5.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: propcache
+SPDXID: SPDXRef-Package-propcache
+PackageVersion: 0.4.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: Apache-2.0
+PackageLicenseDeclared: Apache-2.0
+
+PackageName: psutil
+SPDXID: SPDXRef-Package-psutil
+PackageVersion: 7.1.3
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause
+PackageLicenseDeclared: BSD-3-Clause
+
+PackageName: pycparser
+SPDXID: SPDXRef-Package-pycparser
+PackageVersion: 2.23
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-3-Clause
+PackageLicenseDeclared: BSD-3-Clause
+
+PackageName: pydantic
+SPDXID: SPDXRef-Package-pydantic
+PackageVersion: 2.12.5
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: pydantic-core
+SPDXID: SPDXRef-Package-pydantic-core
+PackageVersion: 2.41.5
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: pydantic-settings
+SPDXID: SPDXRef-Package-pydantic-settings
+PackageVersion: 2.12.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: pydicom
+SPDXID: SPDXRef-Package-pydicom
+PackageVersion: 3.0.2
+PackageDownloadLocation: NOASSERTION
+
+PackageName: pygments
+SPDXID: SPDXRef-Package-pygments
+PackageVersion: 2.20.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: BSD-2-Clause
+PackageLicenseDeclared: BSD-2-Clause
+
+PackageName: pynetdicom
+SPDXID: SPDXRef-Package-pynetdicom
+PackageVersion: 3.0.4
+PackageDownloadLocation: NOASSERTION
+
+PackageName: pyparsing
+SPDXID: SPDXRef-Package-pyparsing
+PackageVersion: 3.2.5
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: python-dateutil
+SPDXID: SPDXRef-Package-python-dateutil
+PackageVersion: 2.9.0.post0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: LicenseRef-Dual-License
+PackageLicenseDeclared: LicenseRef-Dual-License
+
+PackageName: pytz
+SPDXID: SPDXRef-Package-pytz
+PackageVersion: 2025.2
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: pyyaml
+SPDXID: SPDXRef-Package-pyyaml
+PackageVersion: 6.0.3
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: redis
+SPDXID: SPDXRef-Package-redis
+PackageVersion: 7.1.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: requests
+SPDXID: SPDXRef-Package-requests
+PackageVersion: 2.33.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: Apache-2.0
+PackageLicenseDeclared: Apache-2.0
+
+PackageName: rich
+SPDXID: SPDXRef-Package-rich
+PackageVersion: 14.2.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: seaborn
+SPDXID: SPDXRef-Package-seaborn
+PackageVersion: 0.13.2
+PackageDownloadLocation: NOASSERTION
+
+PackageName: six
+SPDXID: SPDXRef-Package-six
+PackageVersion: 1.17.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: sqlalchemy
+SPDXID: SPDXRef-Package-sqlalchemy
+PackageVersion: 2.0.44
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: structlog
+SPDXID: SPDXRef-Package-structlog
+PackageVersion: 25.5.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: (MIT OR Apache-2.0)
+PackageLicenseDeclared: (MIT OR Apache-2.0)
+
+PackageName: textual
+SPDXID: SPDXRef-Package-textual
+PackageVersion: 7.2.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: tqdm
+SPDXID: SPDXRef-Package-tqdm
+PackageVersion: 4.67.1
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: (MPL-2.0 AND MIT)
+PackageLicenseDeclared: (MPL-2.0 AND MIT)
+
+PackageName: typing-extensions
+SPDXID: SPDXRef-Package-typing-extensions
+PackageVersion: 4.15.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: PSF-2.0
+PackageLicenseDeclared: PSF-2.0
+
+PackageName: typing-inspection
+SPDXID: SPDXRef-Package-typing-inspection
+PackageVersion: 0.4.2
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: tzdata
+SPDXID: SPDXRef-Package-tzdata
+PackageVersion: 2025.2
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: Apache-2.0
+PackageLicenseDeclared: Apache-2.0
+
+PackageName: urllib3
+SPDXID: SPDXRef-Package-urllib3
+PackageVersion: 2.6.3
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: watchdog
+SPDXID: SPDXRef-Package-watchdog
+PackageVersion: 6.0.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: Apache-2.0
+PackageLicenseDeclared: Apache-2.0
+
+PackageName: yarl
+SPDXID: SPDXRef-Package-yarl
+PackageVersion: 1.22.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: Apache-2.0
+PackageLicenseDeclared: Apache-2.0
 
 PackageName: internal-dicom-codec
 SPDXID: SPDXRef-Package-internal-dicom-codec
