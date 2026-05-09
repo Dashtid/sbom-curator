@@ -1,9 +1,13 @@
 """End-to-end checks on the dicom-fuzzer dogfood fixture pair.
 
-The fixture models the slim-manual philosophy: the manual SBOM lists
-only what Syft can't see (vendored binaries, statically linked libs),
-and Syft fills in the comprehensive dependency picture. These tests
-assert that healthy shape.
+The fixture models the FDA-curator philosophy: the manual SBOM is
+comprehensive on shipped components on its own (NTIA baseline shape)
+plus vendored entries only a hand-curated SBOM can record. Syft's scan
+covers the same shipped components plus dev/test tooling the curator
+deliberately doesn't track. The reconcile shape exercises every bucket
+end-to-end: large in-both, modest only-in-Syft (build tooling), small
+only-in-manual (vendored), small version_mismatches, small
+license_mismatches.
 
 Bucket-level reconciler logic is exhaustively tested with synthetic
 Component records in tests/test_reconcile.py; this file is the
@@ -18,21 +22,27 @@ from sbom_curator.reconcile.diff import reconcile
 DOGFOOD = Path(__file__).parent / "fixtures" / "dogfood" / "dicom-fuzzer-1.11.0"
 
 
-def test_manual_sbom_lists_only_vendored_components() -> None:
+def test_manual_sbom_includes_vendored_and_shipped_runtime_components() -> None:
     components = load(DOGFOOD / "manual.spdx", source="manual")
     names = {c.name for c in components}
 
-    # Slim manual: only the things Syft cannot see.
-    assert names == {"internal-dicom-codec", "vendored-zlib"}
+    # The vendored entries Syft cannot see — only a hand-curated SBOM
+    # can record them.
+    assert {"internal-dicom-codec", "vendored-zlib"} <= names
+
+    # Comprehensive on shipped runtime deps too. Spot-check that the
+    # core DICOM libraries the manual must declare are present.
+    assert {"pydicom", "pynetdicom", "numpy", "cryptography"} <= names
 
 
-def test_syft_sbom_parses_and_dwarfs_manual() -> None:
+def test_syft_sbom_parses_and_covers_more_than_the_manual() -> None:
     syft_components = load(DOGFOOD / "syft.spdx.json", source="syft")
     manual_components = load(DOGFOOD / "manual.spdx", source="manual")
 
-    # Syft finds the comprehensive view; manual is intentionally tiny.
-    assert len(syft_components) > 50
-    assert len(syft_components) > 10 * len(manual_components)
+    # Syft sees the whole venv (including dev tooling); the manual
+    # covers shipped components + vendored entries only.
+    assert len(syft_components) > 100
+    assert len(syft_components) > len(manual_components)
 
 
 def test_dogfood_reconciliation_is_the_healthy_shape() -> None:
@@ -46,12 +56,16 @@ def test_dogfood_reconciliation_is_the_healthy_shape() -> None:
         "vendored-zlib",
     }
 
-    # Syft's comprehensive view, none of which the curator re-listed.
-    assert len(result.only_in_syft) > 50
+    # Large in-both bucket: the curator captured shipped components and
+    # they agree with the Syft scan.
+    assert len(result.in_both) > 50
 
-    # Healthy slim manuals don't deliberately overlap with Syft. The
-    # vendored entries' names don't collide with any PyPI package, so
-    # there are no coincidental matches either.
-    assert result.in_both == []
-    assert result.version_mismatches == []
-    assert result.license_mismatches == []
+    # Modest only-in-Syft bucket: dev tooling (pytest, ruff, mypy,
+    # pre-commit, type stubs, packaging machinery) the curator
+    # deliberately doesn't track, plus a handful of transitives.
+    assert len(result.only_in_syft) > 30
+
+    # Two deliberate version mismatches (cffi, packaging) and one
+    # deliberate license mismatch (click) exercise those buckets.
+    assert {m.name for m, _ in result.version_mismatches} == {"cffi", "packaging"}
+    assert {m.name for m, _ in result.license_mismatches} == {"click"}

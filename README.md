@@ -67,8 +67,9 @@ lands at `<output-dir>/<name>-reconcile.md`. Exit code is `0` on success,
 
 The repo ships a real fixture pair under
 [`tests/fixtures/dogfood/dicom-fuzzer-1.11.0/`](tests/fixtures/dogfood/dicom-fuzzer-1.11.0/) —
-a hand-written manual SBOM plus a Syft scan of the project's installed venv.
-Run:
+a hand-curated manual SBOM (comprehensive on shipped components, NTIA-baseline
+shape, plus two vendored entries Syft can't see) and a Syft scan of the
+project's installed venv. Run:
 
 ```bash
 sbom-curator reconcile \
@@ -77,16 +78,27 @@ sbom-curator reconcile \
     --name   dicom-fuzzer-1.11.0
 ```
 
-The terminal prints the four bucket counts (`only in manual`, `only in Syft`,
-`in both / agree`, `version disagreements`, `license disagreements`). The
-report at `artifacts/dicom-fuzzer-1.11.0-reconcile.md` lists the components in
-each bucket. Empty buckets render as `(none)` so the report's diff is stable
-run-to-run.
+Terminal:
 
-> The dogfood fixture is currently slim (it lists only what Syft can't see).
-> An upcoming change re-fattens it to model the comprehensive FDA-curator
-> shape this README describes — see [`BACKLOG.md`](BACKLOG.md).
+```text
+[+] wrote artifacts/dicom-fuzzer-1.11.0-reconcile.md
+[+] in both, agree: 56
+[!] version disagreements: 2
+[!] license disagreements: 1
+[!] only in Syft: 75
+[i] only in manual: 2
+```
 
+This is the **healthy curator shape**: a large `In both, agree` core (the
+shipped runtime deps the manual covers and Syft confirmed), a modest
+`Only in Syft` bucket (dev tooling like pytest, ruff, mypy, pre-commit, type
+stubs — material that doesn't ship and so doesn't belong in the FDA SBOM), a
+small `Only in manual` (the vendored entries), and a few deliberate
+disagreements that the fixture uses to exercise those buckets end-to-end
+(`cffi`/`packaging` lag a minor behind on the manual side; `click` is listed
+with a different license).
+
+Empty buckets render as `(none)` so the report's diff is stable run-to-run.
 See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the curator's end-to-end
 guide.
 
