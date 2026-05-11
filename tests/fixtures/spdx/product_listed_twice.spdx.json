@@ -1,0 +1,66 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "widget",
+  "documentNamespace": "https://example.invalid/widget-1.0.0",
+  "creationInfo": {
+    "created": "2026-05-11T00:00:00Z",
+    "creators": ["Tool: syft-like"]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-DocumentRoot-Directory-widget",
+      "name": "widget",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-python-widget-deadbeef",
+      "name": "widget",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/widget@1.0.0"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-python-attrs-cafef00d",
+      "name": "attrs",
+      "versionInfo": "25.4.0",
+      "downloadLocation": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/attrs@25.4.0"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-widget",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-DocumentRoot-Directory-widget",
+      "relatedSpdxElement": "SPDXRef-Package-python-widget-deadbeef",
+      "relationshipType": "CONTAINS"
+    },
+    {
+      "spdxElementId": "SPDXRef-DocumentRoot-Directory-widget",
+      "relatedSpdxElement": "SPDXRef-Package-python-attrs-cafef00d",
+      "relationshipType": "CONTAINS"
+    }
+  ]
+}

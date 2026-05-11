@@ -34,9 +34,15 @@ def load(path: Path, source: Source = "manual") -> list[Component]:
     content-sniff: if the first non-blank line begins with
     ``SPDXVersion``, parse as tag-value regardless of extension.
 
-    Skips packages targeted by the document's DESCRIBES relationship; those
-    represent the product itself and would otherwise produce a guaranteed
-    "Only in manual" entry on every report.
+    Skips the product itself: packages targeted by the document's DESCRIBES
+    relationship, and packages whose name matches one of those targets. The
+    name check matters for Syft scans of a directory — Syft's document
+    DESCRIBES a synthetic ``...DocumentRoot-Directory-<name>`` package *and*
+    separately lists the installed package of the same name; without the
+    name check the latter shows up as a phantom "add". (A scanned directory
+    that coincidentally shares a name with a real dependency would
+    over-filter that dependency — rare, and the curator would notice the
+    gap.)
 
     Raises SpdxParseError on parse failure or non-2.x spdxVersion. SPDX 3.0
     is rejected explicitly because spdx-tools accepts the version string but
@@ -52,9 +58,13 @@ def load(path: Path, source: Source = "manual") -> list[Component]:
         raise SpdxParseError(f"{path}: expected SPDX-2.x, got {version!r}")
 
     described = _document_describes(doc)
+    described_names = {pkg.name for pkg in doc.packages if pkg.spdx_id in described}
     components: list[Component] = []
     for pkg in doc.packages:
         if pkg.spdx_id in described:
+            continue
+        if pkg.name in described_names:
+            _log.debug("skipping package %r: shares a name with a described element", pkg.name)
             continue
         if not pkg.version:
             _log.debug("skipping package %r: no version", pkg.name)

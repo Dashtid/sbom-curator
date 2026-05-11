@@ -66,6 +66,11 @@ def test_dogfood_reconciliation_is_the_healthy_shape() -> None:
     # deliberately doesn't track, plus a handful of transitives.
     assert len(result.only_in_syft) > 30
 
+    # The product itself does not leak into only-in-Syft. Syft lists
+    # dicom-fuzzer twice (the scanned-directory root and the installed
+    # package); the parser filters both out by name.
+    assert "dicom-fuzzer" not in {c.name for c in result.only_in_syft}
+
     # Two deliberate version mismatches (cffi, packaging) and one
     # deliberate license mismatch (click) exercise those buckets.
     assert {m.name for m, _ in result.version_mismatches} == {"cffi", "packaging"}
@@ -86,6 +91,9 @@ def test_dogfood_ingest_plan_relabels_the_buckets() -> None:
     }
     assert len(p.keeps) > 50
     assert len(p.adds) > 30
+
+    # The product itself is not a phantom "add".
+    assert all(a.syft.name != "dicom-fuzzer" for a in p.adds)
 
     # The lone license disagreement surfaces as a keep with license drift.
     assert {k.manual.name for k in p.keeps_with_license_drift} == {"click"}
