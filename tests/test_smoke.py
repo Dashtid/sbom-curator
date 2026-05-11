@@ -61,6 +61,48 @@ def test_reconcile_command_reports_parse_error_with_exit_code_two(tmp_path: Path
     assert "[-]" in result.output
 
 
+def test_ingest_command_writes_plan_and_exits_zero(tmp_path: Path) -> None:
+    out_dir = tmp_path / "artifacts"
+    result = CliRunner().invoke(
+        cli,
+        [
+            "-v", "ingest",
+            "--manual", str(DOGFOOD / "manual.spdx"),
+            "--syft", str(DOGFOOD / "syft.spdx.json"),
+            "--name", "dicom-fuzzer-1.11.0",
+            "--output-dir", str(out_dir),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    plan_path = out_dir / "dicom-fuzzer-1.11.0-ingest.md"
+    assert plan_path.exists()
+    assert "# SBOM ingest plan — dicom-fuzzer-1.11.0" in plan_path.read_text(encoding="utf-8")
+
+    # ASCII markers survive Rich markup. [i] in particular needs escaping.
+    assert "[!] bumps:" in result.output
+    assert "[!] adds:" in result.output
+    assert "[i] keeps:" in result.output
+    assert "with license drift" in result.output
+    assert "[+] preserves:" in result.output
+
+
+def test_ingest_command_reports_parse_error_with_exit_code_two(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.spdx"
+    bad.write_text("not spdx at all", encoding="utf-8")
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(bad),
+            "--syft", str(DOGFOOD / "syft.spdx.json"),
+            "--name", "demo-1.0.0",
+            "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 2
+    assert "[-]" in result.output
+
+
 def test_component_dataclass_defaults() -> None:
     c = Component(name="openssl", version="3.0.0", source="manual")
     assert c.purl is None
