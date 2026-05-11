@@ -20,6 +20,18 @@ def test_load_returns_components_in_deterministic_order() -> None:
     ]
 
 
+def test_load_skips_packages_sharing_a_name_with_the_described_element() -> None:
+    # Mirrors a Syft directory scan: the document DESCRIBES a synthetic
+    # "DocumentRoot-Directory-widget" package, and Syft also lists the
+    # installed "widget" package under a different SPDXID. Both are the
+    # product itself; only the real dependency survives.
+    components = load(FIXTURES / "product_listed_twice.spdx.json", source="syft")
+
+    assert [c.name for c in components] == ["attrs"]
+    assert components[0].version == "25.4.0"
+    assert "widget" not in {c.name for c in components}
+
+
 def test_load_tags_components_as_manual_with_versions() -> None:
     components = load(FIXTURES / "affinity_minimal.spdx.json")
     by_name = {c.name: c for c in components}

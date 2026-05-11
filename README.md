@@ -100,7 +100,7 @@ Terminal:
 ```text
 [+] wrote artifacts/dicom-fuzzer-1.11.0-ingest.md
 [!] bumps: 2
-[!] adds: 75
+[!] adds: 74
 [i] keeps: 56 (1 with license drift)
 [+] preserves: 2
 ```
@@ -116,7 +116,7 @@ and any keeps with license drift; quiet keeps are counted but not listed so the
 actionable sections stand out.
 
 `reconcile` against the same pair gives the underlying four-bucket diff
-(`only in manual: 2 / only in Syft: 75 / in both, agree: 56 / version
+(`only in manual: 2 / only in Syft: 74 / in both, agree: 56 / version
 disagreements: 2 / license disagreements: 1`). Empty sections render as
 `(none)` so reports diff cleanly run-to-run. See
 [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the curator's end-to-end guide.

@@ -21,20 +21,6 @@ out "parse with spdx-tools, re-serialize" (that loses all of it).
 Likely a surgical text-edit pass, or it stays manual. Kept opt-in
 regardless; the default is to leave the curator's file untouched.
 
-### Filter the product itself out of the Syft side
-
-**Trigger:** the product package appearing in `ingest`'s Adds bucket
-(or `reconcile`'s only-in-Syft) confuses a reviewer.
-
-The parser skips packages targeted by the document's `DESCRIBES`
-relationship, which removes the product from the *manual* side. But
-Syft's `DESCRIBES` points at its own root element, not the product
-package, so the product (`dicom-fuzzer 1.11.0` in the dogfood fixture)
-stays in the Syft package list and shows up as a phantom "add". A fix
-would need to identify the product on the Syft side too — by document
-name, source name, or a passed-in hint — without breaking cases where
-two packages legitimately share the document's name.
-
 ### Affinity-shaped fixture + .NET name-style normalization
 
 **Trigger:** an anonymizable Affinity SBOM (or any real .NET SBOM) at
@@ -157,3 +143,4 @@ covers them.
 | PR #13 | Reframe docs around the FDA-curator workflow; report file → `-reconcile.md` |
 | PR #14 | Re-fatten the dogfood manual SBOM to the comprehensive FDA shape |
 | PR #15 | `ingest` command (bumps / adds / keeps / preserves edit plan) |
+| PR #16 | Filter the product out of the Syft side (skip packages sharing a name with a DESCRIBES target) |

@@ -26,7 +26,7 @@ populated:
 | Bucket | Count | What it means |
 | --- | --- | --- |
 | Only in manual | 2 | The vendored entries the curator added because Syft can't see them. |
-| Only in Syft | ~75 | Dev tooling (pytest, ruff, mypy, pre-commit, type stubs, packaging machinery) and a handful of transitives the curator deliberately doesn't track because they don't ship with the product. |
+| Only in Syft | ~74 | Dev tooling (pytest, ruff, mypy, pre-commit, type stubs, packaging machinery) and a handful of transitives the curator deliberately doesn't track because they don't ship with the product. |
 | In both, agree | ~55 | The shipped runtime deps the curator captured and Syft confirmed. The bulk of the SBOM. |
 | Version disagreements | 2 | `cffi` and `packaging` are intentionally one minor behind the Syft view, exercising the version_mismatches bucket. |
 | License disagreements | 1 | `click` is intentionally listed with a different license than Syft's declared value, exercising the license_mismatches bucket. |
