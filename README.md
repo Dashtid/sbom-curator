@@ -29,10 +29,19 @@ The curator's loop:
    drift, vendored entries Syft can't see.
 4. Decide which deltas land in the manual SBOM. Submit the manual SBOM.
 
-Today this ships the `reconcile` command, which produces a four-bucket diff
-the curator reads and acts on. An `ingest` command — which produces an
-explicit BUMP/ADD/KEEP/PRESERVE edit plan — is the planned headline; see
-[`BACKLOG.md`](BACKLOG.md).
+Two commands serve that loop:
+
+- `ingest` — the curator's command. Turns a Syft scan into an edit plan:
+  **bumps** (manual has an older version), **adds** (Syft saw it, manual
+  doesn't list it), **keeps** (already in agreement; license drift flagged),
+  **preserves** (manual lists it, Syft can't see it — leave it alone). The
+  curator reads the plan and edits the manual SBOM by hand.
+- `reconcile` — the raw four-bucket diff (only-in-manual, only-in-Syft,
+  version disagreements, license disagreements). Useful for triage without
+  intent to ingest, or as a sanity cross-check.
+
+Neither command rewrites the manual SBOM. An `ingest --apply` mode is
+deferred — see [`BACKLOG.md`](BACKLOG.md).
 
 ## Position vs sbom-sentinel
 
@@ -52,6 +61,13 @@ pip install -e .
 ## Usage
 
 ```bash
+# The curator's command: Syft scan in, edit plan out
+sbom-curator ingest \
+    --manual product.spdx \
+    --syft   product.syft.spdx.json \
+    --name   product-1.0.0
+
+# The raw diff
 sbom-curator reconcile \
     --manual product.spdx \
     --syft   product.syft.spdx.json \
@@ -59,9 +75,10 @@ sbom-curator reconcile \
 ```
 
 `--manual` accepts any SPDX 2.x serialization spdx-tools understands
-(tag-value `.spdx`, JSON, YAML, RDF/XML); `--syft` likewise. The report
-lands at `<output-dir>/<name>-reconcile.md`. Exit code is `0` on success,
-`2` on parse failure.
+(tag-value `.spdx`, JSON, YAML, RDF/XML); `--syft` likewise. `ingest` writes
+`<output-dir>/<name>-ingest.md`; `reconcile` writes
+`<output-dir>/<name>-reconcile.md`. Exit code is `0` on success, `2` on parse
+failure.
 
 ## Try it
 
@@ -72,7 +89,7 @@ shape, plus two vendored entries Syft can't see) and a Syft scan of the
 project's installed venv. Run:
 
 ```bash
-sbom-curator reconcile \
+sbom-curator ingest \
     --manual tests/fixtures/dogfood/dicom-fuzzer-1.11.0/manual.spdx \
     --syft   tests/fixtures/dogfood/dicom-fuzzer-1.11.0/syft.spdx.json \
     --name   dicom-fuzzer-1.11.0
@@ -81,26 +98,28 @@ sbom-curator reconcile \
 Terminal:
 
 ```text
-[+] wrote artifacts/dicom-fuzzer-1.11.0-reconcile.md
-[+] in both, agree: 56
-[!] version disagreements: 2
-[!] license disagreements: 1
-[!] only in Syft: 75
-[i] only in manual: 2
+[+] wrote artifacts/dicom-fuzzer-1.11.0-ingest.md
+[!] bumps: 2
+[!] adds: 75
+[i] keeps: 56 (1 with license drift)
+[+] preserves: 2
 ```
 
-This is the **healthy curator shape**: a large `In both, agree` core (the
-shipped runtime deps the manual covers and Syft confirmed), a modest
-`Only in Syft` bucket (dev tooling like pytest, ruff, mypy, pre-commit, type
-stubs — material that doesn't ship and so doesn't belong in the FDA SBOM), a
-small `Only in manual` (the vendored entries), and a few deliberate
-disagreements that the fixture uses to exercise those buckets end-to-end
-(`cffi`/`packaging` lag a minor behind on the manual side; `click` is listed
-with a different license).
+This is the **healthy curator shape**: a couple of **bumps** (manual versions
+that lag the Syft scan), a modest **adds** list (dev tooling like pytest, ruff,
+mypy, pre-commit, type stubs — material that doesn't ship and so doesn't belong
+in the FDA SBOM, plus a handful of transitives to consider), a large **keeps**
+core (shipped runtime deps already in agreement), and a small **preserves**
+list (the vendored entries Syft can't see). The plan at
+`artifacts/dicom-fuzzer-1.11.0-ingest.md` enumerates the bumps, adds, preserves,
+and any keeps with license drift; quiet keeps are counted but not listed so the
+actionable sections stand out.
 
-Empty buckets render as `(none)` so the report's diff is stable run-to-run.
-See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the curator's end-to-end
-guide.
+`reconcile` against the same pair gives the underlying four-bucket diff
+(`only in manual: 2 / only in Syft: 75 / in both, agree: 56 / version
+disagreements: 2 / license disagreements: 1`). Empty sections render as
+`(none)` so reports diff cleanly run-to-run. See
+[`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the curator's end-to-end guide.
 
 ## v1 limitations (deliberate)
 
@@ -118,9 +137,11 @@ guide.
 - **No CycloneDX support.** Have Syft emit SPDX
   (`syft scan ... -o spdx-json=...`) — both sides same format, no
   translation layer.
-- **`reconcile` doesn't write back to the manual SBOM.** It produces a
-  report; the curator edits the manual by hand. Auto-rewrite is a planned
-  follow-up but `--apply` will stay opt-in (see `ingest` in `BACKLOG.md`).
+- **Neither command writes back to the manual SBOM.** `ingest` produces an
+  edit plan; the curator applies it by hand. Auto-rewrite (`ingest --apply`)
+  is deferred and will stay opt-in — see [`BACKLOG.md`](BACKLOG.md). Editing
+  by hand keeps the curator's formatting, comments, package groupings, and
+  curated relationships intact.
 
 ## Development
 

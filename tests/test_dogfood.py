@@ -16,6 +16,7 @@ real-world end-to-end anchor.
 
 from pathlib import Path
 
+from sbom_curator.curate.ingest import plan
 from sbom_curator.parsers.spdx import load
 from sbom_curator.reconcile.diff import reconcile
 
@@ -69,3 +70,22 @@ def test_dogfood_reconciliation_is_the_healthy_shape() -> None:
     # deliberate license mismatch (click) exercise those buckets.
     assert {m.name for m, _ in result.version_mismatches} == {"cffi", "packaging"}
     assert {m.name for m, _ in result.license_mismatches} == {"click"}
+
+
+def test_dogfood_ingest_plan_relabels_the_buckets() -> None:
+    manual = load(DOGFOOD / "manual.spdx", source="manual")
+    syft = load(DOGFOOD / "syft.spdx.json", source="syft")
+    p = plan(manual, syft)
+
+    # The version mismatches become bumps; the vendored entries become
+    # preserves; the rest of the in-both bucket becomes keeps.
+    assert {b.manual.name for b in p.bumps} == {"cffi", "packaging"}
+    assert {a.manual.name for a in p.preserves} == {
+        "internal-dicom-codec",
+        "vendored-zlib",
+    }
+    assert len(p.keeps) > 50
+    assert len(p.adds) > 30
+
+    # The lone license disagreement surfaces as a keep with license drift.
+    assert {k.manual.name for k in p.keeps_with_license_drift} == {"click"}

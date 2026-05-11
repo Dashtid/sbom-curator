@@ -6,6 +6,35 @@ their trigger so the codebase stays free of speculative complexity.
 
 ## Open
 
+### `ingest --apply` — write the edit plan back to the manual SBOM
+
+**Trigger:** the curator has run `ingest` against a few real customer
+SBOMs by hand and the same mechanical edits (version bumps, appending
+new package blocks) are clearly worth automating.
+
+`ingest` produces a plan; today the curator applies it by hand. An
+`--apply` flag would let the tool perform the safe subset of edits:
+appending `AddAction` package blocks, updating `PackageVersion` lines
+for `BumpAction`s. It must preserve the file's existing formatting,
+comments, package groupings, and curated relationships — which rules
+out "parse with spdx-tools, re-serialize" (that loses all of it).
+Likely a surgical text-edit pass, or it stays manual. Kept opt-in
+regardless; the default is to leave the curator's file untouched.
+
+### Filter the product itself out of the Syft side
+
+**Trigger:** the product package appearing in `ingest`'s Adds bucket
+(or `reconcile`'s only-in-Syft) confuses a reviewer.
+
+The parser skips packages targeted by the document's `DESCRIBES`
+relationship, which removes the product from the *manual* side. But
+Syft's `DESCRIBES` points at its own root element, not the product
+package, so the product (`dicom-fuzzer 1.11.0` in the dogfood fixture)
+stays in the Syft package list and shows up as a phantom "add". A fix
+would need to identify the product on the Syft side too — by document
+name, source name, or a passed-in hint — without breaking cases where
+two packages legitimately share the document's name.
+
 ### Affinity-shaped fixture + .NET name-style normalization
 
 **Trigger:** an anonymizable Affinity SBOM (or any real .NET SBOM) at
@@ -124,3 +153,7 @@ covers them.
 | PR #6 | README running example + `[i]` marker escape fix |
 | PR #7 | Loose version (PEP 440) + license (SPDX expression) equivalence |
 | PR #9 | Content-sniff SPDX tag-value under `.txt` extension (real customer SBOMs commonly land as `.txt`) |
+| PR #12 | Rename project sbom-overlay → sbom-curator |
+| PR #13 | Reframe docs around the FDA-curator workflow; report file → `-reconcile.md` |
+| PR #14 | Re-fatten the dogfood manual SBOM to the comprehensive FDA shape |
+| PR #15 | `ingest` command (bumps / adds / keeps / preserves edit plan) |
