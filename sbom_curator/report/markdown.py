@@ -3,8 +3,9 @@
 Two entry points:
 
 - :func:`render` — a reconciliation as a four-bucket triage report.
-- :func:`render_ingest_plan` — an edit plan as a curator TODO list
-  (bumps, adds, keeps-with-license-drift, preserves).
+- :func:`render_ingest_plan` — a change report: what the latest scan
+  *added*, *bumped*, what's *only in your SBOM* (review), and which
+  unchanged entries had a *license change*.
 
 Both layouts are section-stable: empty sections render as ``(none)``
 rather than being omitted, so a report's diff is meaningful run-to-run
@@ -16,7 +17,7 @@ from sbom_curator.curate.ingest import (
     BumpAction,
     EditPlan,
     KeepAction,
-    PreserveAction,
+    ReviewAction,
 )
 from sbom_curator.parsers.model import Component
 from sbom_curator.reconcile.diff import Reconciliation
@@ -44,30 +45,33 @@ def render(reconciliation: Reconciliation, *, name: str) -> str:
 
 
 def render_ingest_plan(edit_plan: EditPlan, *, name: str) -> str:
-    """Format an edit plan as a Markdown curator TODO list.
+    """Format a change report — what the latest scan changed, relative to your SBOM.
 
-    Quiet keeps (manual already matches Syft, no license drift) are
-    counted in the summary but not enumerated — listing every
-    no-action row would drown the actionable sections. Keeps that *do*
-    show license drift get their own section.
+    Unchanged entries are counted in the summary, not enumerated; the
+    only unchanged ones that get their own section are those whose
+    license changed. The manual SBOM is never modified — this is a
+    report the curator acts on by hand.
     """
-    drift = edit_plan.keeps_with_license_drift
-    keep_note = f"; {len(drift)} with license drift" if drift else ""
+    changed = edit_plan.keeps_with_license_change
+    keep_note = f" ({len(changed)} with a license change)" if changed else ""
     lines: list[str] = []
-    lines.append(f"# SBOM ingest plan — {name}")
+    lines.append(f"# SBOM change report — {name}")
     lines.append("")
     lines.append("## Summary")
     lines.append("")
-    lines.append(f"- Bumps: {len(edit_plan.bumps)} (manual SBOM has older versions)")
-    lines.append(f"- Adds: {len(edit_plan.adds)} (Syft saw, manual does not list)")
-    lines.append(f"- Keeps: {len(edit_plan.keeps)} (manual matches Syft{keep_note})")
-    lines.append(f"- Preserves: {len(edit_plan.preserves)} (manual lists; Syft can't see)")
+    lines.append(f"- Added: {len(edit_plan.added)} (in the scan, not in your SBOM)")
+    lines.append(f"- Bumped: {len(edit_plan.bumped)} (in both, version differs)")
+    lines.append(f"- Only in your SBOM: {len(edit_plan.reviews)} (not in the scan — see below)")
+    lines.append(f"- Unchanged: {len(edit_plan.keeps)}{keep_note}")
     lines.append("")
-    lines.extend(_render_bumps(edit_plan.bumps))
-    lines.extend(_render_adds(edit_plan.adds))
-    lines.extend(_render_keep_drifts(drift))
-    lines.extend(_render_preserves(edit_plan.preserves))
+    lines.extend(_render_added(edit_plan.added))
+    lines.extend(_render_bumped(edit_plan.bumped))
+    lines.extend(_render_reviews(edit_plan.reviews))
+    lines.extend(_render_license_changes(changed))
     return "\n".join(lines) + "\n"
+
+
+# ----- reconcile report sections -----
 
 
 def _render_single_section(heading: str, components: list[Component]) -> list[str]:
@@ -108,60 +112,76 @@ def _render_pair_section(
     return out
 
 
-def _render_bumps(bumps: list[BumpAction]) -> list[str]:
-    out = ["## Bumps", ""]
-    if not bumps:
-        out += ["(none)", ""]
-        return out
-    out.append("| Name | Manual version | Syft version | License drift |")
-    out.append("| --- | --- | --- | --- |")
-    for b in bumps:
-        flag = "_yes_" if b.license_drift else "_no_"
-        out.append(_row(_cell(b.manual.name), _cell(b.manual.version), _cell(b.syft.version), flag))
-    out.append("")
-    return out
+# ----- change-report sections -----
 
 
-def _render_adds(adds: list[AddAction]) -> list[str]:
-    out = ["## Adds", ""]
-    if not adds:
+def _render_added(added: list[AddAction]) -> list[str]:
+    out = [
+        "## Added",
+        "",
+        "_In the scan, not in your SBOM. Some is build/dev tooling that "
+        "doesn't ship — add the ones that do._",
+        "",
+    ]
+    if not added:
         out += ["(none)", ""]
         return out
     out.append("| Name | Version | License | PURL |")
     out.append("| --- | --- | --- | --- |")
-    for a in adds:
+    for a in added:
         c = a.syft
         out.append(_row(_cell(c.name), _cell(c.version), _cell(c.license), _cell(c.purl)))
     out.append("")
     return out
 
 
-def _render_keep_drifts(keeps: list[KeepAction]) -> list[str]:
-    out = ["## Keeps with license drift", ""]
+def _render_bumped(bumped: list[BumpAction]) -> list[str]:
+    out = ["## Bumped", ""]
+    if not bumped:
+        out += ["(none)", ""]
+        return out
+    out.append("| Name | Your version | Scan version | License change |")
+    out.append("| --- | --- | --- | --- |")
+    for b in bumped:
+        flag = "_yes_" if b.license_changed else "_no_"
+        out.append(_row(_cell(b.manual.name), _cell(b.manual.version), _cell(b.syft.version), flag))
+    out.append("")
+    return out
+
+
+def _render_reviews(reviews: list[ReviewAction]) -> list[str]:
+    out = [
+        "## Only in your SBOM",
+        "",
+        "_Not found in the scan. Either the scanner can't see it (vendored / "
+        "statically linked — fine, leave it), the scan lists it under a "
+        "different name, or it's gone (then remove it)._",
+        "",
+    ]
+    if not reviews:
+        out += ["(none)", ""]
+        return out
+    out.append("| Name | Version | License |")
+    out.append("| --- | --- | --- |")
+    for rv in reviews:
+        c = rv.manual
+        out.append(_row(_cell(c.name), _cell(c.version), _cell(c.license)))
+    out.append("")
+    return out
+
+
+def _render_license_changes(keeps: list[KeepAction]) -> list[str]:
+    out = ["## License changed (otherwise unchanged)", ""]
     if not keeps:
         out += ["(none)", ""]
         return out
-    out.append("| Name | Version | Manual license | Syft license |")
+    out.append("| Name | Version | Your license | Scan license |")
     out.append("| --- | --- | --- | --- |")
     for k in keeps:
         out.append(
             _row(_cell(k.manual.name), _cell(k.manual.version),
                  _cell(k.manual.license), _cell(k.syft.license))
         )
-    out.append("")
-    return out
-
-
-def _render_preserves(preserves: list[PreserveAction]) -> list[str]:
-    out = ["## Preserves", ""]
-    if not preserves:
-        out += ["(none)", ""]
-        return out
-    out.append("| Name | Version | License |")
-    out.append("| --- | --- | --- |")
-    for p in preserves:
-        c = p.manual
-        out.append(_row(_cell(c.name), _cell(c.version), _cell(c.license)))
     out.append("")
     return out
 

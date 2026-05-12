@@ -21,80 +21,95 @@ out "parse with spdx-tools, re-serialize" (that loses all of it).
 Likely a surgical text-edit pass, or it stays manual. Kept opt-in
 regardless; the default is to leave the curator's file untouched.
 
-### Affinity-shaped fixture + .NET name-style normalization
+### .NET name-style normalization (top priority — trigger met)
 
-**Trigger:** an anonymizable Affinity SBOM (or any real .NET SBOM) at
-**the same product version** as the matching Syft scan is available to
-commit as a fixture.
+**Trigger:** met. A real Affinity 5.0.0 manual SBOM run against the
+matching Syft scan (2026-05-12) showed the name-mismatch problem is
+pervasive in .NET and dominates the report. Examples from that run:
 
-The dicom-fuzzer fixture covers the Python case. .NET surfaces a new
-shape of false-positive disagreement that lowercase-name match cannot
-bridge. Concrete cases captured from a real run of v5 manual against v6
-Syft (different versions, but the naming-style mismatch is the same):
-
-| Manual lists | Syft sees | Mismatch type |
+| Manual lists | Scan sees | Mismatch type |
 | --- | --- | --- |
-| `Reactive` 4.4.1 | `System.Reactive` 6.1.0 (and `.Core`, `.Interfaces`) | Vendor-prefix dropped in manual |
-| `Vortice` 3.2.0 | `Vortice.DXGI`, `.Direct2D1`, `.Direct3D11` (×12) | Manual lists umbrella; Syft lists individual NuGet packages |
-| `CommunityToolkit` 8.2.2 | `CommunityToolkit.Mvvm`, `.Common`, `.HighPerformance`, `.WinUI.*` (×35) | Same umbrella-vs-package pattern |
-| `CUDA Runtime Library` 11.0.194 | `NVIDIA CUDA 11.0.194 Runtime` 6,14,11,11000 | Different name string + Syft picked up Windows file-version metadata literally |
+| `Reactive` 4.4.1 | `System.Reactive` 4.4.1 (+ `.Core`, `.Interfaces`, `.Linq`) | Vendor-prefix dropped in the manual; *version actually matches* |
+| `Vortice` 3.2.0 | `Vortice.Direct3D11`, `.DXGI`, `.DirectX`, `.Direct3D9` 3.2.0 | Manual lists the family; scan lists the individual NuGet packages |
+| `CommunityToolkit` 8.2.2 | `CommunityToolkit.Mvvm` 8.2.2 | Same family-vs-package pattern; version matches |
+| `Infragistics Ultimate` 2022.2 | `Infragistics.WPF.*` 22.2.19 (×12) | Family-vs-package *and* marketing-version vs NuGet-version (`2022.2` ≈ `22.2.x`) |
+| `DCMTK` 3.6.7 | `dcm2json`, `dcmconv`, `dcmcjpeg`, … (~40 tool binaries) | Coarse component vs the individual executables a directory scan finds |
+| `CUDA Runtime Library` 11.0.194 | `NVIDIA CUDA 11.0.194 Runtime` | Different name string entirely; the version is embedded in the name |
 
-Two separate normalization questions surface:
+Without normalization, every one of these lands in *added* (the scan's
+fine-grained names) and *only in your SBOM* (the curator's coarse name)
+— two large noisy buckets that bury the handful of genuinely-missing
+packages. Distinct sub-problems:
 
-1. **Splitting** — does manual `CommunityToolkit` represent the umbrella
-   (matches all sub-packages) or specifically `CommunityToolkit.Mvvm`?
-   The right answer is curator's intent — the tool can't infer it
-   without a hint, so the manual SBOM author may need to be more
-   specific or a curator-side annotation may be needed.
-2. **Prefixing** — `Reactive` → `System.Reactive` is a clean
-   vendor-prefix strip on the manual side. `CommunityToolkit` →
-   `CommunityToolkit.Mvvm` is a sibling-suffix add. Different rules,
-   handle separately.
+1. **Family ↔ package** — does manual `CommunityToolkit` mean the whole
+   family or specifically `CommunityToolkit.Mvvm`? The tool can't infer
+   curator intent; likely needs a curator-side hint (a glob in the
+   manual entry's name, or an SPDX annotation) or a "this manual entry
+   covers all `X.*`" convention.
+2. **Vendor-prefix** — `Reactive` ↔ `System.Reactive` is a clean prefix
+   strip. `CommunityToolkit` ↔ `CommunityToolkit.Mvvm` is a sibling
+   suffix add. Different rules.
+3. **Coarse ↔ binaries** — `DCMTK` ↔ 40 `dcm*` executables. Tied to the
+   "scan the install, not the build tree" guidance — a clean scan
+   reduces but doesn't eliminate this for native libs.
 
-**v5-manual-vs-v6-Syft is the wrong pair to design against** — the
-products diverge between versions. What's needed is a v6 manual SBOM
-matching the v6 Syft scan; design starts when that pair exists.
+The Affinity 5.0.0 pair is the design input; it isn't committable as a
+fixture (customer-confidential), so the work needs an anonymized or
+synthetic .NET pair to test against, or it's designed against the live
+Affinity files and tested with a small synthetic .NET fixture.
 
-### Manual SBOM linter / preflight
+### `lint` subcommand — preflight the manual SBOM (trigger met)
 
-**Trigger:** repeated friction landing real customer SBOMs on the
-parser. Already observed: the v5 Affinity manual SBOM had a
-spec-violating `PackageVersion: NOASSERTION` line (SPDX 2.3 §7.3
-forbids that value; the field is optional, so absence is the right way
-to express "unknown"). spdx-tools rejects it correctly but the error
-message is opaque.
+**Trigger:** met. The real Affinity 5.0.0 manual SBOM (2026-05-12)
+would not parse — line 196 (`PackageVersion: NOASSERTION` on the
+`haeslib` package) is spec-forbidden by SPDX 2.3 §7.3 (the field is
+optional; absence means "unknown"). spdx-tools rejects it correctly
+but the error message — `Token did not match specified grammar rule.
+Line: 196` — is opaque, and the curator had to hand-edit the file
+before the tool would run.
 
 A small `sbom-curator lint manual.spdx` subcommand would catch known
-spec violations before the reconcile step, with actionable messages
-("delete the PackageVersion line — the value `NOASSERTION` is not
-permitted; absence means unknown"). Defers the linting story to its
-own command rather than making the parser permissive.
+spec violations before `ingest`/`reconcile`, with actionable messages
+("line 196: delete `PackageVersion: NOASSERTION` — that value isn't
+permitted by SPDX 2.3 §7.3; omit the field when the version is
+unknown"). Keeps the linting story in its own command rather than
+making the parser permissive. Worth doing soon — it's the first thing
+that bit a real run.
 
-### Per-file vs aggregated artifact deduplication
+### Folder-scan mode
 
-**Trigger:** a Syft scan produces visibly duplicate "Only in Syft"
-entries that distract the reviewer from real findings.
+**Trigger:** running `ingest --manual … --syft … --name …` pairwise
+across several products gets tedious.
 
-Observed in the Affinity v6 scan: `CommunityToolkit.Mvvm 8.2.1` and
-`CommunityToolkit.Mvvm 8.2.1.1+2258fd3103` appear as separate rows
-because PEP 440 treats local segments as distinguishing (correctly per
-spec, but the two entries are the same package observed at different
-file-system locations within the same install).
+`sbom-curator ingest artifacts/` (or a dedicated verb) would discover
+matching `manual/<name>.spdx` + `syft/<name>.syft.spdx.json` pairs in
+the conventional layout and write `reports/<name>-ingest.md` for each.
+Pure convenience over the explicit-flags form; needs the multi-product
+workflow to actually exist first.
 
-Possible approach: in `Reconciliation`, collapse entries that share a
-PURL up to the local segment, before the `only_in_syft` list is
-finalized. Need real cases to validate the rule doesn't hide actual
-multi-version installs.
+### Filter the product's own assemblies from the scan side
 
-### CycloneDX support
+**Trigger:** met (mildly). The Affinity 5.0.0 directory scan listed
+~475 `Hermes.*` .NET assemblies — the product itself, decomposed into
+its DLLs — every one of which showed up as an *added* entry. PR #16
+filters packages that share a name with a `DESCRIBES` target, but a
+*directory* scan's `DESCRIBES` target is a synthetic `file` component
+named after the directory, not "Hermes", so the assemblies slip
+through. A fix needs another signal — match against the product name
+the manual SBOM `DESCRIBES`, or a `--product-prefix Hermes.` hint, or
+detect first-party assemblies some other way — without breaking cases
+where a real dependency legitimately shares a prefix with the product.
 
-**Trigger:** a real workflow needs to consume CycloneDX. Today
-sbom-sentinel produces CycloneDX for Grype and that pipeline is
-unaffected by us; sbom-curator is SPDX-on-SPDX by design.
+### Per-file / per-assembly deduplication
 
-If triggered, add `sbom_curator/parsers/cyclonedx.py` mirroring the
-spdx parser shape. The `Component` model is format-agnostic so the
-reconciler and reporter need no changes.
+**Trigger:** met (mildly). The Affinity scan listed
+`CommunityToolkit.Mvvm 8.2.2` *and* `CommunityToolkit.Mvvm
+8.2.2.1+4c21e0294b` as separate rows (PEP 440 treats the local segment
+as distinguishing — correct per spec, but they're the same package),
+and several `Hermes.*` assemblies twice at the same version (the same
+DLL found at two paths). Possible approach: collapse entries sharing a
+PURL (or name) up to the local/build segment before the buckets are
+finalized. Needs care not to hide genuine multi-version installs.
 
 ### Snapshot tests for the Markdown report
 
@@ -124,6 +139,15 @@ Add `CHANGELOG.md` (Keep-a-Changelog format), bump `pyproject.toml` to
 `0.1.0`, tag the release commit, push the tag. Optionally publish to
 PyPI when the tool's audience extends past the local toolchain.
 
+## Decided against
+
+- **CycloneDX (or other non-SPDX) input parser.** The workflow produces
+  SPDX JSON (`syft scan ... -o spdx-json=...`); a CycloneDX file is
+  converted externally first (`syft convert in.json -o spdx-json=out.spdx.json`).
+  Keeping the parser layer SPDX-only avoids carrying a translation layer
+  whose only job is to undo a flag the user controls. Revisit only if a
+  workflow genuinely *cannot* produce or convert to SPDX.
+
 ## Done
 
 Recorded for context; remove entries once the project context fully
@@ -142,5 +166,7 @@ covers them.
 | PR #12 | Rename project sbom-overlay → sbom-curator |
 | PR #13 | Reframe docs around the FDA-curator workflow; report file → `-reconcile.md` |
 | PR #14 | Re-fatten the dogfood manual SBOM to the comprehensive FDA shape |
-| PR #15 | `ingest` command (bumps / adds / keeps / preserves edit plan) |
+| PR #15 | `ingest` command (added / bumped / review / keep change report) |
 | PR #16 | Filter the product out of the Syft side (skip packages sharing a name with a DESCRIBES target) |
+| PR #17 | Pin GitHub Actions to commit SHAs + add Dependabot |
+| PR #19 | Reframe `ingest` as a per-scan change report; soften the "comprehensive manual" framing |
