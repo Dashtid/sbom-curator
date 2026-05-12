@@ -131,13 +131,26 @@ sbom-curator ingest \
     --output-dir artifacts/reports
 ```
 
-If a directory scan of a multi-assembly app (notably .NET) lists the
-product's own DLLs as packages, add `--product-prefix` to drop them — e.g.
-`--product-prefix Hermes.` for an app whose assemblies are all `Hermes.*`.
-Repeatable, case-insensitive; the run prints how many scan packages it
-dropped. (The DESCRIBES-based filter already removes the product when the
-scan names it explicitly; this is the fallback for directory scans, where
-the DESCRIBES target is a synthetic directory node.)
+A directory scan of a multi-assembly app (notably .NET) gets two kinds of
+cleanup on the `--syft` side before the diff:
+
+- **Automatic.** Loose binaries inside vendored source trees (a name that's
+  a filesystem path, version `UNKNOWN`) are dropped — they're not packages.
+  A package the scan lists more than once is collapsed to one entry: exact
+  duplicates (Syft emits a row per referencing project), and "same package
+  at different precision" pairs — a NuGet semver `9.0.0` alongside its .NET
+  assembly version `9.0.24.52809`, or a version with a `+build` local
+  segment alongside the same version without. A genuine multi-version
+  install (`foo 1.x` *and* `foo 2.x`) is kept. The run prints how many it
+  dropped; `-v` logs each collapse.
+- **`--product-prefix`.** Drops the product's own DLLs by name prefix —
+  e.g. `--product-prefix Hermes.` for an app whose assemblies are all
+  `Hermes.*`. Repeatable, case-insensitive; also useful for framework
+  noise you deliberately don't enumerate (`--product-prefix System.
+  --product-prefix Microsoft.Extensions.`). (The DESCRIBES-based filter
+  already removes the product when the scan names it explicitly; this is
+  the fallback for directory scans, where the DESCRIBES target is a
+  synthetic directory node that shares no name with the assemblies.)
 
 The report lands at `artifacts/reports/<name>-ingest.md` with four
 sections:

@@ -11,13 +11,20 @@ FIXTURES = Path(__file__).parent / "fixtures" / "spdx"
 def test_load_returns_components_in_deterministic_order() -> None:
     components = load(FIXTURES / "affinity_minimal.spdx.json")
 
-    # Affinity (DESCRIBES target) and no-version-pkg (no versionInfo) skipped.
+    # Skipped: Affinity (DESCRIBES target), no-version-pkg (no versionInfo),
+    # unknown-version-pkg ("UNKNOWN"), and the backslash path-name package.
     assert [c.name for c in components] == [
         "internal.tool",
         "Newtonsoft.Json",
         "openssl",
         "weird-ref-pkg",
     ]
+
+
+def test_load_skips_unknown_version_and_path_like_names() -> None:
+    names = {c.name for c in load(FIXTURES / "affinity_minimal.spdx.json")}
+    assert "unknown-version-pkg" not in names
+    assert not any("\\" in n for n in names)
 
 
 def test_load_skips_packages_sharing_a_name_with_the_described_element() -> None:

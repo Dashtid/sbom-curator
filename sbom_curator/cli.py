@@ -5,7 +5,7 @@ from rich.console import Console
 
 from sbom_curator import __version__
 from sbom_curator.curate.ingest import plan as build_plan
-from sbom_curator.curate.scope import drop_by_name_prefix
+from sbom_curator.curate.scope import dedupe_scan, drop_by_name_prefix
 from sbom_curator.parsers.model import Component
 from sbom_curator.parsers.spdx import SpdxParseError, load
 from sbom_curator.reconcile.diff import reconcile as reconcile_components
@@ -101,10 +101,12 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
 def _load_inputs(
     manual: Path, syft: Path, product_prefixes: tuple[str, ...]
 ) -> tuple[list[Component], list[Component]]:
-    """Parse both SBOMs and drop product assemblies from the scan side.
+    """Parse both SBOMs and clean up the scan side.
 
-    Exits 2 with a message on parse failure. When ``--product-prefix`` was
-    given and matched anything, prints how many scan packages were dropped.
+    Drops the product's own assemblies (``--product-prefix``) and collapses
+    duplicate scan entries (:func:`~sbom_curator.curate.scope.dedupe_scan`),
+    printing a count for each step that removed anything. Exits 2 with a
+    message on parse failure.
     """
     try:
         manual_components = load(manual, source="manual")
@@ -112,12 +114,15 @@ def _load_inputs(
     except SpdxParseError as exc:
         console.print(f"[red][-][/red] {exc}")
         raise click.exceptions.Exit(code=2) from exc
-    syft_components, dropped = drop_by_name_prefix(syft_components, product_prefixes)
-    if dropped:
+    syft_components, filtered = drop_by_name_prefix(syft_components, product_prefixes)
+    if filtered:
         console.print(
-            f"[blue]\\[i][/blue] filtered {len(dropped)} scan packages "
+            f"[blue]\\[i][/blue] filtered {len(filtered)} scan packages "
             f"matching: {', '.join(product_prefixes)}"
         )
+    syft_components, deduped = dedupe_scan(syft_components)
+    if deduped:
+        console.print(f"[blue]\\[i][/blue] collapsed {len(deduped)} duplicate scan packages")
     return manual_components, syft_components
 
 

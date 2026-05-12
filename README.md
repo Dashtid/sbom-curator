@@ -87,10 +87,19 @@ spdx-json=out.spdx.json`) or re-scan with `-o spdx-json=...`. `ingest` writes
 `<output-dir>/<name>-reconcile.md`. Exit code is `0` on success, `2` on parse
 failure.
 
-A directory scan of a multi-assembly app (notably .NET) lists the product's
-own DLLs as packages — pass `--product-prefix` to drop them so the report
-shows real dependencies, e.g. `--product-prefix Hermes.` for an app whose
-assemblies are all `Hermes.*`. The flag is repeatable and case-insensitive.
+A directory scan of a multi-assembly app (notably .NET) needs two kinds of
+cleanup, both applied to the `--syft` side before the diff:
+
+- **Automatic:** loose binaries inside vendored source trees (a name that's a
+  path, version `UNKNOWN`) are dropped; a package the scan lists more than
+  once — exact duplicates, or a NuGet semver (`9.0.0`) alongside its .NET
+  assembly version (`9.0.24.52809`) — is collapsed to one. Genuine
+  multi-version installs are kept. The run prints how many it dropped.
+- **You point it out:** `--product-prefix` drops the product's own DLLs by
+  name prefix, e.g. `--product-prefix Hermes.` for an app whose assemblies
+  are all `Hermes.*` (also handy for framework noise you don't track:
+  `--product-prefix System. --product-prefix Microsoft.Extensions.`).
+  Repeatable, case-insensitive.
 
 ## Try it
 
