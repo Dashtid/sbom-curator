@@ -1,13 +1,17 @@
 from sbom_curator.parsers.model import Component
-from sbom_curator.reconcile.diff import reconcile
+from sbom_curator.reconcile.diff import _normalize_purl, reconcile
 
 
-def _manual(name: str, version: str = "1.0.0", license: str | None = None) -> Component:
-    return Component(name=name, version=version, source="manual", license=license)
+def _manual(
+    name: str, version: str = "1.0.0", license: str | None = None, purl: str | None = None
+) -> Component:
+    return Component(name=name, version=version, source="manual", license=license, purl=purl)
 
 
-def _syft(name: str, version: str = "1.0.0", license: str | None = None) -> Component:
-    return Component(name=name, version=version, source="syft", license=license)
+def _syft(
+    name: str, version: str = "1.0.0", license: str | None = None, purl: str | None = None
+) -> Component:
+    return Component(name=name, version=version, source="syft", license=license, purl=purl)
 
 
 def test_empty_inputs_produce_empty_reconciliation() -> None:
@@ -92,3 +96,97 @@ def test_duplicate_names_in_manual_pair_one_to_one_with_syft() -> None:
     )
     assert len(result.in_both) == 1
     assert [c.version for c in result.only_in_manual] == ["2.0.0"]
+
+
+def test_duplicate_names_consume_each_manual_entry_at_most_once() -> None:
+    result = reconcile(
+        [_manual("foo", "1.0.0"), _manual("foo", "2.0.0")],
+        [_syft("foo", "1.0.0"), _syft("foo", "2.0.0")],
+    )
+    assert len(result.in_both) == 2
+    assert result.only_in_manual == []
+    assert result.only_in_syft == []
+
+
+# ----- PURL-aware matching -----
+
+
+def test_purl_match_links_components_with_different_names() -> None:
+    # The curator recorded the canonical PURL but a coarser display name.
+    result = reconcile(
+        [_manual("CommunityToolkit", "8.2.2", purl="pkg:nuget/CommunityToolkit.Mvvm@8.2.2")],
+        [_syft("CommunityToolkit.Mvvm", "8.2.2", purl="pkg:nuget/CommunityToolkit.Mvvm@8.2.2")],
+    )
+    assert result.only_in_manual == []
+    assert result.only_in_syft == []
+    assert len(result.in_both) == 1
+    assert result.version_mismatches == []
+
+
+def test_purl_match_ignores_version_qualifiers_and_subpath() -> None:
+    result = reconcile(
+        [_manual("ToolkitMvvm", "8.2.2", purl="pkg:nuget/CommunityToolkit.Mvvm@8.2.2")],
+        [
+            _syft(
+                "CommunityToolkit.Mvvm",
+                "8.2.2.1+4c21e0294b",
+                purl="pkg:nuget/CommunityToolkit.Mvvm@8.2.2.1%2B4c21e0294b?foo=bar#sub",
+            )
+        ],
+    )
+    assert len(result.in_both) == 1
+    # Versions still compared on the pair -> a real disagreement surfaces.
+    assert len(result.version_mismatches) == 1
+
+
+def test_purl_match_falls_back_to_name_when_one_side_lacks_a_purl() -> None:
+    # Scan has no PURL: only the lowercased-name path can match it.
+    result = reconcile(
+        [_manual("attrs", "25.4.0", purl="pkg:pypi/attrs@25.4.0")],
+        [_syft("attrs", "25.4.0")],
+    )
+    assert len(result.in_both) == 1
+    result2 = reconcile(
+        [_manual("attrs", "25.4.0", purl="pkg:pypi/attrs@25.4.0")],
+        [_syft("different-name", "1.0.0")],
+    )
+    assert [c.name for c in result2.only_in_manual] == ["attrs"]
+    assert [c.name for c in result2.only_in_syft] == ["different-name"]
+
+
+def test_purl_match_takes_precedence_over_a_name_match_to_another_entry() -> None:
+    # Scan entry is named "bar" but its PURL says it's "foo": pair it with
+    # the manual "foo", leaving the manual "bar" unmatched.
+    result = reconcile(
+        [
+            _manual("foo", "1.0.0", purl="pkg:nuget/foo@1.0.0"),
+            _manual("bar", "1.0.0", purl="pkg:nuget/bar@1.0.0"),
+        ],
+        [_syft("bar", "2.0.0", purl="pkg:nuget/foo@2.0.0")],
+    )
+    matched_manual = result.in_both[0][0]
+    assert matched_manual.name == "foo"
+    assert [c.name for c in result.only_in_manual] == ["bar"]
+    assert result.only_in_syft == []
+
+
+def test_purl_and_name_pointing_at_the_same_entry_match_once() -> None:
+    result = reconcile(
+        [_manual("rich", "14.2.0", purl="pkg:pypi/rich@14.2.0")],
+        [_syft("rich", "14.2.0", purl="pkg:pypi/rich@14.2.0")],
+    )
+    assert len(result.in_both) == 1
+    assert result.only_in_manual == []
+    assert result.only_in_syft == []
+
+
+def test_normalize_purl_strips_version_qualifiers_subpath_and_lowercases() -> None:
+    assert _normalize_purl(
+        "pkg:nuget/Infragistics%20Ultimate@22.2.20222.19?arch=x64#bin"
+    ) == "pkg:nuget/infragistics ultimate"
+
+
+def test_normalize_purl_returns_none_for_missing_or_non_purl_strings() -> None:
+    assert _normalize_purl(None) is None
+    assert _normalize_purl("") is None
+    assert _normalize_purl("not-a-purl") is None

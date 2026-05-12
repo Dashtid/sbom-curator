@@ -145,13 +145,14 @@ disagreements: 2 / license disagreements: 1`). Empty sections render as
 
 ## v1 limitations (deliberate)
 
-- **Name matching is exact, lowercase.** `Reactive` ≠ `System.Reactive`;
-  `DCMTK` ≠ the 40 `dcm*` tool binaries a directory scan finds; `Infragistics
-  Ultimate` ≠ `Infragistics.WPF.*`. Coarse-vs-fine and vendor-prefix gaps land
-  in *added* / *only in your SBOM* rather than being matched up. Name
-  normalization (especially for .NET) is the top BACKLOG item.
-- **PURL is recorded but not used for matching** — PURLs embed the version, so
-  they can't match the same-name-different-version case (the *bumped* bucket).
+- **Matching is PURL first, then exact lowercase name.** If your entry and a
+  scan entry share a package URL (compared version-free), they match even when
+  the names differ — so recording `pkg:nuget/System.Reactive@4.4.1` on your
+  `Reactive` entry bridges it to the scan's `System.Reactive`. Without a PURL
+  to bridge them, name matching is literal: `Reactive` ≠ `System.Reactive`,
+  `DCMTK` ≠ the 40 `dcm*` tool binaries, `Infragistics Ultimate` ≠
+  `Infragistics.WPF.*` (a coarse entry covering many fine-grained packages
+  needs the name-coverage work — see BACKLOG).
 - **Version equivalence** uses PEP 440. `1.0` and `1.0.0` agree;
   `1.0.0+local` is a distinct release. Unparseable versions fall back to strict
   string equality.

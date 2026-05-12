@@ -50,11 +50,20 @@ merges by hand. sbom-curator produces that delta — a *change report*.
    440), compare licenses as SPDX expressions. (Vendor-prefix / coarse-vs-fine
    name normalization is not yet implemented — see BACKLOG.)
 
-4. **Match** (`reconcile`). Lowercase-name match into three buckets:
+4. **Match** (`reconcile`). Two passes: first by **PURL identity** (same
+   package URL after lowercasing, URL-decoding, and dropping the
+   `@version` / `?qualifiers` / `#subpath` — so a curator entry named
+   `CommunityToolkit` with PURL `pkg:nuget/CommunityToolkit.Mvvm@8.2.2`
+   matches a scan entry `CommunityToolkit.Mvvm`), then whatever is still
+   unmatched by **lowercased name**. PURL match wins; a component is
+   consumed by at most one match. Result is three buckets:
    - **Only in manual** — vendored/static entries the scanner can't see, or
-     entries the scan lists under a different name, or stale entries.
+     entries the scan lists under a different name *with no PURL to bridge
+     it*, or stale entries.
    - **Only in Syft** — candidates to add. Some don't ship (build tooling).
-   - **In both** — cross-check version and license; flag mismatches.
+   - **In both** — cross-check version and license; flag mismatches. (A
+     PURL match with differing versions lands here, so it surfaces as a
+     bump — that's intentional.)
 
 5. **Plan** (`ingest`). Relabel the buckets as a change report, splitting
    `in both` on PEP 440 version equivalence: **added** (only-in-Syft),
