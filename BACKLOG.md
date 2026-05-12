@@ -58,21 +58,7 @@ fixture (customer-confidential), so the work needs an anonymized or
 synthetic .NET pair to test against, or it's designed against the live
 Affinity files and tested with a small synthetic .NET fixture.
 
-Two concrete next steps toward this, in order:
-
-### PURL-aware matching (next)
-
-**Trigger:** met. The Affinity manual records `pkg:nuget/CommunityToolkit.Mvvm@8.2.2`
-as the PURL of its `CommunityToolkit` entry, and the scan lists
-`CommunityToolkit.Mvvm 8.2.2` — they're obviously the same package, but
-the name-only matcher puts one in *added* and the other in *only in your
-SBOM*. When a manual entry and a scan entry both carry a PURL and the
-PURLs are equal (after normalizing case, URL-decoding, dropping
-`?qualifiers`, and trimming a `+local` version segment), match on that —
-in addition to the current lowercased-name match. No flag; one matcher,
-two views, so `ingest` and `reconcile` both benefit. Care needed: a name
-match and a PURL match must not double-count the same entry, and a PURL
-match should win over a name near-miss.
+The next step toward this:
 
 ### Manual entry covers a name prefix (the family ↔ package fix)
 
@@ -152,12 +138,16 @@ NuGet semver paired with its .NET assembly version (`9.0.0` ↔
 `9.0.24.52809`). Genuine multi-version installs are kept. **Residuals:**
 (a) a name-group with *three or more* distinct versions where only some
 are precision-variants — currently kept whole (the heuristic only fires
-for exactly-two-version groups); (b) dedup keys on name, not PURL, so two
-entries with the same PURL but slightly different name strings aren't
-unified — fold this into the PURL-aware matching work; (c) collapses are
-counted in the run output and `-v` logs each one, but the report doesn't
-list them — add a `## Collapsed scan duplicates` appendix if an audit
-ever needs the full record.
+for exactly-two-version groups); (b) dedup keys on name, not PURL — it
+could additionally collapse scan entries that share a normalized PURL
+(`_normalize_purl`, now used by the matcher) even when their name strings
+differ; (c) collapses are counted in the run output and `-v` logs each
+one, but the report doesn't list them — add a `## Collapsed scan
+duplicates` appendix if an audit ever needs the full record; (d) the
+cross-side `versions_equal` check doesn't know the NuGet-semver ↔ .NET
+assembly-version pattern, so a PURL match between manual `4.4.1` and scan
+`4.4.1.57983` reads as a bump — teach `versions_equal` (or a sibling) the
+same heuristic `_canonical_variant` uses so it reads as agreement.
 
 ### Snapshot tests for the Markdown report
 
@@ -220,3 +210,4 @@ covers them.
 | PR #19 | Reframe `ingest` as a per-scan change report; soften the "comprehensive manual" framing |
 | PR #20 | `--product-prefix` — drop the product's own assemblies (e.g. `Hermes.*`) from the scan side |
 | PR #21 | Scan-side hygiene — drop `UNKNOWN`-version / path-named entries (parser); `dedupe_scan` collapses exact dups + precision-variant pairs |
+| PR #22 | PURL-aware matching — match manual↔scan on equal version-free PURLs before falling back to lowercased name |
