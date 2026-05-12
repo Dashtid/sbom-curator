@@ -131,6 +131,14 @@ sbom-curator ingest \
     --output-dir artifacts/reports
 ```
 
+If a directory scan of a multi-assembly app (notably .NET) lists the
+product's own DLLs as packages, add `--product-prefix` to drop them — e.g.
+`--product-prefix Hermes.` for an app whose assemblies are all `Hermes.*`.
+Repeatable, case-insensitive; the run prints how many scan packages it
+dropped. (The DESCRIBES-based filter already removes the product when the
+scan names it explicitly; this is the fallback for directory scans, where
+the DESCRIBES target is a synthetic directory node.)
+
 The report lands at `artifacts/reports/<name>-ingest.md` with four
 sections:
 
@@ -193,11 +201,12 @@ syft scan dir:'C:/Program Files/Hermes/Affinity' \
 # (if your pipeline produces CycloneDX instead:
 #  syft convert affinity.cdx.json -o spdx-json=artifacts/syft/affinity-6.0.0.syft.spdx.json)
 
-# Step 3: change report
+# Step 3: change report (Affinity's assemblies are all Hermes.* — drop them)
 sbom-curator ingest \
     --manual artifacts/manual/affinity-6.0.0.spdx \
     --syft   artifacts/syft/affinity-6.0.0.syft.spdx.json \
     --name   affinity-6.0.0 \
+    --product-prefix Hermes. \
     --output-dir artifacts/reports
 
 # Read artifacts/reports/affinity-6.0.0-ingest.md; apply the added/bumped

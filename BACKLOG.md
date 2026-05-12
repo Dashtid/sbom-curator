@@ -87,18 +87,20 @@ the conventional layout and write `reports/<name>-ingest.md` for each.
 Pure convenience over the explicit-flags form; needs the multi-product
 workflow to actually exist first.
 
-### Filter the product's own assemblies from the scan side
+### Auto-detect the product's own assemblies on the scan side
 
-**Trigger:** met (mildly). The Affinity 5.0.0 directory scan listed
-~475 `Hermes.*` .NET assemblies — the product itself, decomposed into
-its DLLs — every one of which showed up as an *added* entry. PR #16
+**Partly shipped (PR #20): `--product-prefix`.** The Affinity 5.0.0
+directory scan listed ~472 `Hermes.*` .NET assemblies — the product
+itself, decomposed into its DLLs — every one an *added* entry. PR #16
 filters packages that share a name with a `DESCRIBES` target, but a
-*directory* scan's `DESCRIBES` target is a synthetic `file` component
-named after the directory, not "Hermes", so the assemblies slip
-through. A fix needs another signal — match against the product name
-the manual SBOM `DESCRIBES`, or a `--product-prefix Hermes.` hint, or
-detect first-party assemblies some other way — without breaking cases
-where a real dependency legitimately shares a prefix with the product.
+*directory* scan's `DESCRIBES` target is a synthetic component named
+after the directory, not "Hermes", so the assemblies slip through.
+`ingest --product-prefix Hermes.` now drops them by name prefix (a
+curator hint). **Still open:** infer the prefix automatically — e.g.
+from the product name the *manual* SBOM `DESCRIBES`, or from the
+dominant assembly-name cluster in the scan — so the curator doesn't
+have to supply it. Must not over-filter a real dependency that
+legitimately shares a prefix with the product.
 
 ### Per-file / per-assembly deduplication
 
@@ -170,3 +172,4 @@ covers them.
 | PR #16 | Filter the product out of the Syft side (skip packages sharing a name with a DESCRIBES target) |
 | PR #17 | Pin GitHub Actions to commit SHAs + add Dependabot |
 | PR #19 | Reframe `ingest` as a per-scan change report; soften the "comprehensive manual" framing |
+| PR #20 | `--product-prefix` — drop the product's own assemblies (e.g. `Hermes.*`) from the scan side |

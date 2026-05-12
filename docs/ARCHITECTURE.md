@@ -31,7 +31,11 @@ merges by hand. sbom-curator produces that delta — a *change report*.
 1. **Parse**. Read both SPDX 2.3 inputs into a common in-memory shape:
    `{name, version, purl?, license?, source: "manual" | "syft"}`. Packages the
    document `DESCRIBES`, and packages sharing a name with one, are dropped —
-   that's the product itself, not a dependency.
+   that's the product itself, not a dependency. For directory scans, where the
+   `DESCRIBES` target is a synthetic directory node that shares no name with
+   the product's assemblies, `--product-prefix` drops scan packages by name
+   prefix (`Hermes.` → the ~470 `Hermes.*` DLLs of a .NET app) — a curator
+   hint applied after parse, before match (`curate/scope.py`).
 
 2. **Normalize**. Lowercase names, coalesce versions ("1.0" vs "1.0.0" via PEP
    440), compare licenses as SPDX expressions. (Vendor-prefix / coarse-vs-fine

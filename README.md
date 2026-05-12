@@ -87,6 +87,11 @@ spdx-json=out.spdx.json`) or re-scan with `-o spdx-json=...`. `ingest` writes
 `<output-dir>/<name>-reconcile.md`. Exit code is `0` on success, `2` on parse
 failure.
 
+A directory scan of a multi-assembly app (notably .NET) lists the product's
+own DLLs as packages — pass `--product-prefix` to drop them so the report
+shows real dependencies, e.g. `--product-prefix Hermes.` for an app whose
+assemblies are all `Hermes.*`. The flag is repeatable and case-insensitive.
+
 ## Try it
 
 The repo ships a real fixture pair under
