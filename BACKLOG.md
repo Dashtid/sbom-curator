@@ -58,6 +58,38 @@ fixture (customer-confidential), so the work needs an anonymized or
 synthetic .NET pair to test against, or it's designed against the live
 Affinity files and tested with a small synthetic .NET fixture.
 
+Two concrete next steps toward this, in order:
+
+### PURL-aware matching (next)
+
+**Trigger:** met. The Affinity manual records `pkg:nuget/CommunityToolkit.Mvvm@8.2.2`
+as the PURL of its `CommunityToolkit` entry, and the scan lists
+`CommunityToolkit.Mvvm 8.2.2` — they're obviously the same package, but
+the name-only matcher puts one in *added* and the other in *only in your
+SBOM*. When a manual entry and a scan entry both carry a PURL and the
+PURLs are equal (after normalizing case, URL-decoding, dropping
+`?qualifiers`, and trimming a `+local` version segment), match on that —
+in addition to the current lowercased-name match. No flag; one matcher,
+two views, so `ingest` and `reconcile` both benefit. Care needed: a name
+match and a PURL match must not double-count the same entry, and a PURL
+match should win over a name near-miss.
+
+### Manual entry covers a name prefix (the family ↔ package fix)
+
+**Trigger:** met (Affinity: `Vortice` ↔ five `Vortice.*`; `Infragistics
+Ultimate` ↔ twelve `Infragistics.WPF.*`; `System.Reactive` ↔ four
+`System.Reactive.*`). Let a manual entry declare it *covers* a name
+prefix, so the matcher absorbs every scan entry under that prefix into
+that one manual entry instead of flooding *added*. **Design questions to
+settle before building:** (a) how the curator expresses coverage — a glob
+in the SPDX `PackageName` (`Vortice.*`)? an SPDX annotation /
+`PackageComment` convention (`coversPrefix: Vortice.`)? a side-file?;
+(b) what a covered scan entry becomes — silently absorbed (counted, not
+listed), or listed under the covering manual entry?; (c) version
+semantics — does the manual's `Vortice 3.2.0` get checked against each
+`Vortice.* 3.2.0`, or is coverage purely about names? Must not absorb a
+real distinct dependency that happens to share the prefix.
+
 ### `lint` subcommand — preflight the manual SBOM (trigger met)
 
 **Trigger:** met. The real Affinity 5.0.0 manual SBOM (2026-05-12)
@@ -96,22 +128,36 @@ filters packages that share a name with a `DESCRIBES` target, but a
 *directory* scan's `DESCRIBES` target is a synthetic component named
 after the directory, not "Hermes", so the assemblies slip through.
 `ingest --product-prefix Hermes.` now drops them by name prefix (a
-curator hint). **Still open:** infer the prefix automatically — e.g.
-from the product name the *manual* SBOM `DESCRIBES`, or from the
-dominant assembly-name cluster in the scan — so the curator doesn't
-have to supply it. Must not over-filter a real dependency that
-legitimately shares a prefix with the product.
+curator hint; repeatable, so it doubles as the knob for framework noise
+the curator deliberately doesn't enumerate — `--product-prefix System.
+--product-prefix Microsoft.Extensions.`). **Still open:** infer the
+product prefix automatically — e.g. from the product name the *manual*
+SBOM `DESCRIBES`, or from the dominant assembly-name cluster in the scan
+— so the curator doesn't have to supply it. Must not over-filter a real
+dependency that legitimately shares a prefix with the product.
 
-### Per-file / per-assembly deduplication
+**Deferred — config file.** If a curator finds themselves passing the
+same handful of `--product-prefix` (and, later, `--fail-on`,
+coverage-hint, etc.) flags on every run, that's the trigger to add a
+project config file (`sbom-curator.toml` or `--config path`). Not before
+— a flag or two on the command line is fine; a config layer with no
+settled set of settings to hold is speculative.
 
-**Trigger:** met (mildly). The Affinity scan listed
-`CommunityToolkit.Mvvm 8.2.2` *and* `CommunityToolkit.Mvvm
-8.2.2.1+4c21e0294b` as separate rows (PEP 440 treats the local segment
-as distinguishing — correct per spec, but they're the same package),
-and several `Hermes.*` assemblies twice at the same version (the same
-DLL found at two paths). Possible approach: collapse entries sharing a
-PURL (or name) up to the local/build segment before the buckets are
-finalized. Needs care not to hide genuine multi-version installs.
+### Scan-side deduplication — residuals
+
+**Mostly shipped (PR #21).** `curate/scope.dedupe_scan` now collapses,
+on the scan side before matching: exact duplicates (same lowercased name
++ version), PEP-440-equal versions, `+local`-segment variants, and a
+NuGet semver paired with its .NET assembly version (`9.0.0` ↔
+`9.0.24.52809`). Genuine multi-version installs are kept. **Residuals:**
+(a) a name-group with *three or more* distinct versions where only some
+are precision-variants — currently kept whole (the heuristic only fires
+for exactly-two-version groups); (b) dedup keys on name, not PURL, so two
+entries with the same PURL but slightly different name strings aren't
+unified — fold this into the PURL-aware matching work; (c) collapses are
+counted in the run output and `-v` logs each one, but the report doesn't
+list them — add a `## Collapsed scan duplicates` appendix if an audit
+ever needs the full record.
 
 ### Snapshot tests for the Markdown report
 
@@ -173,3 +219,4 @@ covers them.
 | PR #17 | Pin GitHub Actions to commit SHAs + add Dependabot |
 | PR #19 | Reframe `ingest` as a per-scan change report; soften the "comprehensive manual" framing |
 | PR #20 | `--product-prefix` — drop the product's own assemblies (e.g. `Hermes.*`) from the scan side |
+| PR #21 | Scan-side hygiene — drop `UNKNOWN`-version / path-named entries (parser); `dedupe_scan` collapses exact dups + precision-variant pairs |

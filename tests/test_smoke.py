@@ -9,6 +9,7 @@ from sbom_curator.reconcile.diff import Reconciliation
 from sbom_curator.support.log import get_logger, setup_logging, strip_ansi
 
 DOGFOOD = Path(__file__).parent / "fixtures" / "dogfood" / "dicom-fuzzer-1.11.0"
+SPDX_FIXTURES = Path(__file__).parent / "fixtures" / "spdx"
 
 
 def test_version_flag() -> None:
@@ -101,6 +102,23 @@ def test_ingest_command_product_prefix_drops_scan_packages(tmp_path: Path) -> No
     assert result.exit_code == 0, result.output
     # The dogfood scan carries six `types-*` stub packages.
     assert "[i] filtered 6 scan packages matching: types-" in result.output
+
+
+def test_ingest_command_collapses_duplicate_scan_packages(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(SPDX_FIXTURES / "tagvalue_minimal.spdx"),
+            "--syft", str(SPDX_FIXTURES / "scan_with_duplicates.spdx.json"),
+            "--name", "demo-1.0.0",
+            "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    # attrs listed twice (exact dup) + Microsoft.Extensions.Configuration as
+    # both 9.0.0 and 9.0.24.52809 (NuGet semver + assembly version).
+    assert "[i] collapsed 2 duplicate scan packages" in result.output
 
 
 def test_ingest_command_reports_parse_error_with_exit_code_two(tmp_path: Path) -> None:

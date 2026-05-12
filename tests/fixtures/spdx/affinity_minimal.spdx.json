@@ -54,6 +54,18 @@
       "downloadLocation": "NOASSERTION"
     },
     {
+      "SPDXID": "SPDXRef-Package-UnknownVersion",
+      "name": "unknown-version-pkg",
+      "versionInfo": "UNKNOWN",
+      "downloadLocation": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-PathName",
+      "name": "\\3p\\dcmtk-3.6.7\\bin\\dcmconv",
+      "versionInfo": "3.6.7",
+      "downloadLocation": "NOASSERTION"
+    },
+    {
       "SPDXID": "SPDXRef-Package-WeirdRef",
       "name": "weird-ref-pkg",
       "versionInfo": "1.0.0",

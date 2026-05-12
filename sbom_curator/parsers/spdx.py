@@ -44,6 +44,13 @@ def load(path: Path, source: Source = "manual") -> list[Component]:
     over-filter that dependency — rare, and the curator would notice the
     gap.)
 
+    Also skips non-package noise a directory scan emits: packages with no
+    usable version (missing, or the literal string ``UNKNOWN`` / a
+    ``NOASSERTION`` sentinel) and packages whose name is a filesystem path
+    (contains a backslash) — e.g. ``\\3p\\dcmtk-3.6.7\\bin\\dcmconv`` with
+    version ``UNKNOWN``. Those are loose binaries inside vendored source
+    trees, not dependencies; left in, they flood the "added" bucket.
+
     Raises SpdxParseError on parse failure or non-2.x spdxVersion. SPDX 3.0
     is rejected explicitly because spdx-tools accepts the version string but
     cannot interpret the underlying graph-based format.
@@ -66,13 +73,17 @@ def load(path: Path, source: Source = "manual") -> list[Component]:
         if pkg.name in described_names:
             _log.debug("skipping package %r: shares a name with a described element", pkg.name)
             continue
-        if not pkg.version:
-            _log.debug("skipping package %r: no version", pkg.name)
+        version = "" if pkg.version is None else str(pkg.version).strip()
+        if not version or version.upper() in {"UNKNOWN", "NOASSERTION"}:
+            _log.debug("skipping package %r: no usable version (%r)", pkg.name, pkg.version)
+            continue
+        if "\\" in pkg.name:
+            _log.debug("skipping package %r: name looks like a filesystem path", pkg.name)
             continue
         components.append(
             Component(
                 name=pkg.name,
-                version=pkg.version,
+                version=version,
                 source=source,
                 purl=_extract_purl(pkg),
                 license=_extract_license(pkg),

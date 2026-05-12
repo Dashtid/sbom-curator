@@ -19,11 +19,11 @@ merges by hand. sbom-curator produces that delta — a *change report*.
 ```
    manual.spdx (the deliverable, never modified)
             \
-             >--  parse  --  normalize  --\                /--  reconcile  --  <name>-reconcile.md
-            /                               >--  match  --<
-   syft.spdx.json (a scan, SPDX JSON)       /                \--  plan (ingest)  --  <name>-ingest.md
-            \                             /
-             >--  parse  --  normalize  -/
+             >--  parse  ----------------------  normalize  --\                /--  reconcile  --  <name>-reconcile.md
+            /                                                   >--  match  --<
+   syft.spdx.json (a scan, SPDX JSON)                          /                \--  plan (ingest)  --  <name>-ingest.md
+            \                                                /
+             >--  parse  --  filter / dedupe  --  normalize  -/
 ```
 
 ### Stages
@@ -31,23 +31,32 @@ merges by hand. sbom-curator produces that delta — a *change report*.
 1. **Parse**. Read both SPDX 2.3 inputs into a common in-memory shape:
    `{name, version, purl?, license?, source: "manual" | "syft"}`. Packages the
    document `DESCRIBES`, and packages sharing a name with one, are dropped —
-   that's the product itself, not a dependency. For directory scans, where the
-   `DESCRIBES` target is a synthetic directory node that shares no name with
-   the product's assemblies, `--product-prefix` drops scan packages by name
-   prefix (`Hermes.` → the ~470 `Hermes.*` DLLs of a .NET app) — a curator
-   hint applied after parse, before match (`curate/scope.py`).
+   that's the product itself, not a dependency. Also dropped: packages with no
+   usable version (missing, or the literal `UNKNOWN` / a `NOASSERTION`
+   sentinel) and packages whose name is a filesystem path — loose binaries a
+   directory scan emits from inside vendored source trees, not dependencies.
 
-2. **Normalize**. Lowercase names, coalesce versions ("1.0" vs "1.0.0" via PEP
+2. **Filter & dedupe the scan** (`curate/scope.py`, after parse, before
+   match). For directory scans, where the `DESCRIBES` target is a synthetic
+   directory node that shares no name with the product's assemblies,
+   `--product-prefix` drops scan packages by name prefix (`Hermes.` → the
+   ~470 `Hermes.*` DLLs of a .NET app) — a curator hint. Then `dedupe_scan`
+   collapses a package the scan lists more than once: exact duplicates, and
+   "same package at different precision" pairs (a NuGet semver alongside its
+   .NET assembly version; a `+build`-local-segment version alongside the
+   same version without). A genuine multi-version install is kept.
+
+3. **Normalize**. Lowercase names, coalesce versions ("1.0" vs "1.0.0" via PEP
    440), compare licenses as SPDX expressions. (Vendor-prefix / coarse-vs-fine
    name normalization is not yet implemented — see BACKLOG.)
 
-3. **Match** (`reconcile`). Lowercase-name match into three buckets:
+4. **Match** (`reconcile`). Lowercase-name match into three buckets:
    - **Only in manual** — vendored/static entries the scanner can't see, or
      entries the scan lists under a different name, or stale entries.
    - **Only in Syft** — candidates to add. Some don't ship (build tooling).
    - **In both** — cross-check version and license; flag mismatches.
 
-4. **Plan** (`ingest`). Relabel the buckets as a change report, splitting
+5. **Plan** (`ingest`). Relabel the buckets as a change report, splitting
    `in both` on PEP 440 version equivalence: **added** (only-in-Syft),
    **bumped** (older version on the manual side), **review** (only-in-manual —
    "only in your SBOM"), **keep** (versions agree). A *license change* is
@@ -55,7 +64,7 @@ merges by hand. sbom-curator produces that delta — a *change report*.
    have a license and they differ. One matcher, two views — `ingest` is built
    on `reconcile`'s output, so they never disagree about the facts.
 
-5. **Report**. Markdown, suitable for a PR comment or audit attachment.
+6. **Report**. Markdown, suitable for a PR comment or audit attachment.
    `reconcile` writes the four-bucket diff; `ingest` writes the change report
    (unchanged-and-unchanged entries counted, not enumerated).
 
