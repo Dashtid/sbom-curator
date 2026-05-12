@@ -1,21 +1,24 @@
-"""Turn a reconciliation into a curator-actionable edit plan.
+"""Turn a reconciliation into a per-scan change report.
 
 `reconcile` answers "how do these two SBOMs differ?". `ingest` answers
-the next question — "what should I change in the manual SBOM?" — by
-relabelling the reconciler's four buckets as verbs:
+the curator's question — "what changed in the latest scan, relative to
+the SBOM I maintain?" — by relabelling the reconciler's buckets:
 
-- **PRESERVE** — manual lists it, Syft can't see it. Vendored or
-  statically linked; leave it alone.
-- **ADD** — Syft saw it, manual doesn't list it. Candidate addition.
-- **BUMP** — manual has it at an older version. Update the version.
-- **KEEP** — already in agreement. No action — unless the license
-  drifted, which is carried as an annotation on the action.
+- **ADDED**  — the scan lists it; your SBOM doesn't. Consider adding it.
+- **BUMPED** — both list it, at different versions. Consider updating.
+- **REVIEW** — your SBOM lists it; the scan doesn't list anything by
+  that name. Could be (a) something the scanner can't see (vendored or
+  statically linked — fine, leave it), (b) the scan listing it under a
+  different name (a known gap — see the .NET notes in BACKLOG.md), or
+  (c) something genuinely gone (then remove it).
+- **KEEP**   — both list it at the same version. No change — unless the
+  *license* changed, which is carried as an annotation.
 
 No new matching logic lives here: `plan()` calls `reconcile()` and
 partitions its `in_both` bucket on PEP 440 version equivalence, so the
 two commands share one source of truth.
 
-`plan()` does not rewrite the manual SBOM. The curator reads the plan
+`plan()` does not rewrite the manual SBOM. The curator reads the report
 and edits by hand; an `--apply` mode, if it ever lands, stays opt-in.
 """
 
@@ -26,76 +29,88 @@ from sbom_curator.reconcile.diff import reconcile
 from sbom_curator.reconcile.equivalence import licenses_equal, versions_equal
 
 
+def _license_changed(a: Component, b: Component) -> bool:
+    """True only when *both* records carry a license and they differ.
+
+    "You say MIT, the scan says nothing" is not a change — the scanner
+    just has no opinion — so a missing license on either side is not a
+    finding. "You say MIT, the scan says Apache-2.0" is.
+    """
+    return a.license is not None and b.license is not None and not licenses_equal(
+        a.license, b.license
+    )
+
+
 @dataclass(frozen=True)
 class BumpAction:
-    """Manual lists this component at a version Syft superseded."""
+    """Both SBOMs list this component, at different versions."""
 
     manual: Component
     syft: Component
 
     @property
-    def license_drift(self) -> bool:
-        return not licenses_equal(self.manual.license, self.syft.license)
+    def license_changed(self) -> bool:
+        return _license_changed(self.manual, self.syft)
 
 
 @dataclass(frozen=True)
 class AddAction:
-    """Syft saw this component; the manual SBOM does not list it."""
+    """The scan lists this component; the manual SBOM does not."""
 
     syft: Component
 
 
 @dataclass(frozen=True)
 class KeepAction:
-    """Manual and Syft agree on version. No action — unless license drifted."""
+    """Both SBOMs list this component at the same version."""
 
     manual: Component
     syft: Component
 
     @property
-    def license_drift(self) -> bool:
-        return not licenses_equal(self.manual.license, self.syft.license)
+    def license_changed(self) -> bool:
+        return _license_changed(self.manual, self.syft)
 
 
 @dataclass(frozen=True)
-class PreserveAction:
-    """Manual lists this component; Syft cannot see it (vendored/static)."""
+class ReviewAction:
+    """The manual SBOM lists this component; the scan lists nothing by that name."""
 
     manual: Component
 
 
 @dataclass(frozen=True)
 class EditPlan:
-    """The curator's TODO list, derived from a reconciliation.
+    """The per-scan change report, derived from a reconciliation.
 
     Ordering inside each list is the reconciler's deterministic
-    ``(name.lower(), version)`` so the rendered plan diffs cleanly
+    ``(name.lower(), version)`` so the rendered report diffs cleanly
     run-to-run.
     """
 
-    bumps: list[BumpAction]
-    adds: list[AddAction]
+    added: list[AddAction]
+    bumped: list[BumpAction]
+    reviews: list[ReviewAction]
     keeps: list[KeepAction]
-    preserves: list[PreserveAction]
 
     @property
-    def keeps_with_license_drift(self) -> list[KeepAction]:
-        return [k for k in self.keeps if k.license_drift]
+    def keeps_with_license_change(self) -> list[KeepAction]:
+        return [k for k in self.keeps if k.license_changed]
 
 
 def plan(manual: list[Component], syft: list[Component]) -> EditPlan:
-    """Build an edit plan by relabelling a reconciliation's buckets.
+    """Build a change report by relabelling a reconciliation's buckets.
 
     ``in_both`` pairs split on :func:`versions_equal`: equal versions
     become :class:`KeepAction`, unequal become :class:`BumpAction`.
     ``only_in_syft`` becomes :class:`AddAction`; ``only_in_manual``
-    becomes :class:`PreserveAction`.
+    becomes :class:`ReviewAction`.
     """
     r = reconcile(manual, syft)
-    bumps = [BumpAction(manual=m, syft=s) for m, s in r.in_both
-             if not versions_equal(m.version, s.version)]
+    bumped = [BumpAction(manual=m, syft=s) for m, s in r.in_both
+              if not versions_equal(m.version, s.version)]
     keeps = [KeepAction(manual=m, syft=s) for m, s in r.in_both
              if versions_equal(m.version, s.version)]
-    adds = [AddAction(syft=c) for c in r.only_in_syft]
-    preserves = [PreserveAction(manual=c) for c in r.only_in_manual]
-    return EditPlan(bumps=bumps, adds=adds, keeps=keeps, preserves=preserves)
+    added = [AddAction(syft=c) for c in r.only_in_syft]
+    reviews = [ReviewAction(manual=c) for c in r.only_in_manual]
+    return EditPlan(added=added, bumped=bumped, reviews=reviews, keeps=keeps)

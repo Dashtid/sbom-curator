@@ -1,43 +1,41 @@
 # dicom-fuzzer 1.11.0 dogfood fixture
 
-Real-shape SPDX-on-SPDX reconciliation pair. Used by `tests/test_dogfood.py`
-as an end-to-end anchor and by the README as the running example.
+Real-shape SPDX-on-SPDX pair. Used by `tests/test_dogfood.py` as an
+end-to-end anchor and by the README as the running example.
 
 ## Files
 
-- `manual.spdx` — hand-curated SPDX 2.3 tag-value SBOM modelling the
-  FDA-curator philosophy: comprehensive enough on its own to meet
-  NTIA minimum baseline for the components dicom-fuzzer ships, plus
-  vendored entries only a hand-curated SBOM can record (one
-  statically linked C++ codec, one vendored zlib). Dev/test tooling
-  (pytest, ruff, mypy, pre-commit, type stubs, packaging machinery)
-  is deliberately excluded — that material doesn't ship and lands
-  in the report's only-in-Syft bucket.
+- `manual.spdx` — hand-curated SPDX 2.3 tag-value SBOM, comprehensive on
+  the components dicom-fuzzer ships plus two vendored entries only a
+  hand-curated SBOM can record (one statically linked C++ codec, one
+  vendored zlib). Dev/test tooling (pytest, ruff, mypy, pre-commit, type
+  stubs, packaging machinery) is deliberately excluded — that material
+  doesn't ship, so it shows up in the report's *added* bucket as expected.
+  (Comprehensive is one valid curation scope; the tool supports a focused
+  list just as well — this fixture happens to use the comprehensive one
+  because it exercises more buckets.)
 - `syft.spdx.json` — Syft scan of the project's installed venv,
   locked to the version present at scan time. Refresh with
   `scripts/refresh_dogfood.sh`.
 
 ## What this demonstrates
 
-The FDA-curator philosophy in action. See [`docs/WORKFLOW.md`](../../../../docs/WORKFLOW.md)
-for the full curator guide. The reconciliation result has every bucket
-populated:
+A change report with every section populated. See
+[`docs/WORKFLOW.md`](../../../../docs/WORKFLOW.md) for the full curator
+guide. `sbom-curator ingest` against this pair:
 
-| Bucket | Count | What it means |
+| Section | Count | What it means |
 | --- | --- | --- |
-| Only in manual | 2 | The vendored entries the curator added because Syft can't see them. |
-| Only in Syft | ~74 | Dev tooling (pytest, ruff, mypy, pre-commit, type stubs, packaging machinery) and a handful of transitives the curator deliberately doesn't track because they don't ship with the product. |
-| In both, agree | ~55 | The shipped runtime deps the curator captured and Syft confirmed. The bulk of the SBOM. |
-| Version disagreements | 2 | `cffi` and `packaging` are intentionally one minor behind the Syft view, exercising the version_mismatches bucket. |
-| License disagreements | 1 | `click` is intentionally listed with a different license than Syft's declared value, exercising the license_mismatches bucket. |
+| Added | ~74 | In the scan, not in the SBOM — dev/test tooling (pytest, ruff, mypy, pre-commit, type stubs, packaging machinery) plus a handful of transitives. The curator decides which (if any) belong in the SBOM. |
+| Bumped | 2 | `cffi` and `packaging` are intentionally one minor behind the scan, exercising the bumped bucket. |
+| Only in your SBOM | 2 | The vendored entries the scanner can't see. Left alone. |
+| Unchanged | ~56 | The shipped runtime deps the curator captured and the scan confirmed — the bulk of the SBOM. **1** with a license change: `click` is intentionally listed with a different license than the scan's declared value. |
 
-A real-world reconciliation looks like this most of the time: a large
-agreed core, a modest TODO list of components to either add to the
-manual or explicitly mark as "doesn't ship," and a handful of
-disagreements that point at drift the curator hasn't caught up with
-yet.
+(`reconcile` against the same pair gives the underlying four-bucket diff:
+only-in-manual 2 / only-in-Syft 74 / in-both 56 / version disagreements 2
+/ license disagreements 1.)
 
-Bucket-level reconciler logic is exhaustively tested with synthetic
+Bucket-level matcher logic is exhaustively tested with synthetic
 `Component` records in `tests/test_reconcile.py`; this fixture's job is
 to be a real-world end-to-end anchor.
 

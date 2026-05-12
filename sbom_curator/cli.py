@@ -13,9 +13,9 @@ from sbom_curator.support.log import setup_logging
 
 console = Console()
 
-_MANUAL_HELP = "Authoritative SPDX 2.x manual SBOM (the deliverable)."
-_SYFT_HELP = "Syft-generated SPDX 2.x SBOM (periodic input)."
-_NAME_HELP = "Product name + version, e.g. 'affinity-6.0.0'. Used as the join key."
+_MANUAL_HELP = "Your hand-maintained SPDX 2.x SBOM (tag-value or JSON). Never modified."
+_SYFT_HELP = "An SPDX 2.x scan SBOM to compare against (e.g. from `syft scan ... -o spdx-json`)."
+_NAME_HELP = "Product name + version, e.g. 'affinity-6.0.0'. Used as the join key + report name."
 _OUTPUT_HELP = "Where to write the report."
 
 
@@ -24,7 +24,7 @@ _OUTPUT_HELP = "Where to write the report."
 @click.option("-v", "--verbose", is_flag=True, help="Enable debug-level logging.")
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool) -> None:
-    """Curate one authoritative SPDX SBOM, using Syft scans as input."""
+    """Curate one SPDX SBOM by hand; use scans to see what changed."""
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
     setup_logging(verbose=verbose, log_dir=Path("logs"))
@@ -38,8 +38,37 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 @click.option("--name", "name", required=True, help=_NAME_HELP)
 @click.option("--output-dir", "output_dir", type=click.Path(path_type=Path),
               default=Path("artifacts"), show_default=True, help=_OUTPUT_HELP)
+def ingest(manual: Path, syft: Path, name: str, output_dir: Path) -> None:
+    """Report what a scan changed relative to your SBOM: added / bumped / review.
+
+    Writes a change report you act on by hand. This command does not
+    modify the manual SBOM.
+    """
+    manual_components, syft_components = _load_inputs(manual, syft)
+
+    edit_plan = build_plan(manual_components, syft_components)
+    report = render_ingest_plan(edit_plan, name=name)
+    out_path = _write(output_dir, f"{name}-ingest.md", report)
+
+    changed = len(edit_plan.keeps_with_license_change)
+    keep_note = f" ({changed} with a license change)" if changed else ""
+    console.print(f"[green][+][/green] wrote {out_path}")
+    console.print(f"[yellow][!][/yellow] added: {len(edit_plan.added)}")
+    console.print(f"[yellow][!][/yellow] bumped: {len(edit_plan.bumped)}")
+    console.print(f"[blue]\\[i][/blue] only in your SBOM: {len(edit_plan.reviews)}")
+    console.print(f"[green][+][/green] unchanged: {len(edit_plan.keeps)}{keep_note}")
+
+
+@cli.command()
+@click.option("--manual", "manual", type=click.Path(exists=True, path_type=Path),
+              required=True, help=_MANUAL_HELP)
+@click.option("--syft", "syft", type=click.Path(exists=True, path_type=Path),
+              required=True, help=_SYFT_HELP)
+@click.option("--name", "name", required=True, help=_NAME_HELP)
+@click.option("--output-dir", "output_dir", type=click.Path(path_type=Path),
+              default=Path("artifacts"), show_default=True, help=_OUTPUT_HELP)
 def reconcile(manual: Path, syft: Path, name: str, output_dir: Path) -> None:
-    """Diff the manual SBOM against a Syft SBOM; write a four-bucket report."""
+    """Raw four-bucket diff of the two SBOMs (only-in-manual / only-in-Syft / disagreements)."""
     manual_components, syft_components = _load_inputs(manual, syft)
 
     result = reconcile_components(manual_components, syft_components)
@@ -55,35 +84,6 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path) -> None:
                   f"{len(result.license_mismatches)}")
     console.print(f"[yellow][!][/yellow] only in Syft: {len(result.only_in_syft)}")
     console.print(f"[blue]\\[i][/blue] only in manual: {len(result.only_in_manual)}")
-
-
-@cli.command()
-@click.option("--manual", "manual", type=click.Path(exists=True, path_type=Path),
-              required=True, help=_MANUAL_HELP)
-@click.option("--syft", "syft", type=click.Path(exists=True, path_type=Path),
-              required=True, help=_SYFT_HELP)
-@click.option("--name", "name", required=True, help=_NAME_HELP)
-@click.option("--output-dir", "output_dir", type=click.Path(path_type=Path),
-              default=Path("artifacts"), show_default=True, help=_OUTPUT_HELP)
-def ingest(manual: Path, syft: Path, name: str, output_dir: Path) -> None:
-    """Turn a Syft scan into a curator edit plan (bumps, adds, keeps, preserves).
-
-    Writes a plan the curator reads and applies by hand. This command does
-    not rewrite the manual SBOM.
-    """
-    manual_components, syft_components = _load_inputs(manual, syft)
-
-    edit_plan = build_plan(manual_components, syft_components)
-    report = render_ingest_plan(edit_plan, name=name)
-    out_path = _write(output_dir, f"{name}-ingest.md", report)
-
-    drift = len(edit_plan.keeps_with_license_drift)
-    keep_note = f" ({drift} with license drift)" if drift else ""
-    console.print(f"[green][+][/green] wrote {out_path}")
-    console.print(f"[yellow][!][/yellow] bumps: {len(edit_plan.bumps)}")
-    console.print(f"[yellow][!][/yellow] adds: {len(edit_plan.adds)}")
-    console.print(f"[blue]\\[i][/blue] keeps: {len(edit_plan.keeps)}{keep_note}")
-    console.print(f"[green][+][/green] preserves: {len(edit_plan.preserves)}")
 
 
 def _load_inputs(manual: Path, syft: Path) -> tuple[list[Component], list[Component]]:

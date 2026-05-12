@@ -61,7 +61,7 @@ def test_reconcile_command_reports_parse_error_with_exit_code_two(tmp_path: Path
     assert "[-]" in result.output
 
 
-def test_ingest_command_writes_plan_and_exits_zero(tmp_path: Path) -> None:
+def test_ingest_command_writes_change_report_and_exits_zero(tmp_path: Path) -> None:
     out_dir = tmp_path / "artifacts"
     result = CliRunner().invoke(
         cli,
@@ -74,16 +74,16 @@ def test_ingest_command_writes_plan_and_exits_zero(tmp_path: Path) -> None:
         ],
     )
     assert result.exit_code == 0, result.output
-    plan_path = out_dir / "dicom-fuzzer-1.11.0-ingest.md"
-    assert plan_path.exists()
-    assert "# SBOM ingest plan — dicom-fuzzer-1.11.0" in plan_path.read_text(encoding="utf-8")
+    report_path = out_dir / "dicom-fuzzer-1.11.0-ingest.md"
+    assert report_path.exists()
+    assert "# SBOM change report — dicom-fuzzer-1.11.0" in report_path.read_text(encoding="utf-8")
 
     # ASCII markers survive Rich markup. [i] in particular needs escaping.
-    assert "[!] bumps:" in result.output
-    assert "[!] adds:" in result.output
-    assert "[i] keeps:" in result.output
-    assert "with license drift" in result.output
-    assert "[+] preserves:" in result.output
+    assert "[!] added:" in result.output
+    assert "[!] bumped:" in result.output
+    assert "[i] only in your SBOM:" in result.output
+    assert "[+] unchanged:" in result.output
+    assert "with a license change" in result.output  # dogfood: click
 
 
 def test_ingest_command_reports_parse_error_with_exit_code_two(tmp_path: Path) -> None:
