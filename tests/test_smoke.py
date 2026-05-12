@@ -86,6 +86,23 @@ def test_ingest_command_writes_change_report_and_exits_zero(tmp_path: Path) -> N
     assert "with a license change" in result.output  # dogfood: click
 
 
+def test_ingest_command_product_prefix_drops_scan_packages(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(DOGFOOD / "manual.spdx"),
+            "--syft", str(DOGFOOD / "syft.spdx.json"),
+            "--name", "dicom-fuzzer-1.11.0",
+            "--output-dir", str(tmp_path / "out"),
+            "--product-prefix", "types-",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    # The dogfood scan carries six `types-*` stub packages.
+    assert "[i] filtered 6 scan packages matching: types-" in result.output
+
+
 def test_ingest_command_reports_parse_error_with_exit_code_two(tmp_path: Path) -> None:
     bad = tmp_path / "bad.spdx"
     bad.write_text("not spdx at all", encoding="utf-8")
