@@ -169,4 +169,4 @@ covers them.
 | PR #15 | `ingest` command (added / bumped / review / keep change report) |
 | PR #16 | Filter the product out of the Syft side (skip packages sharing a name with a DESCRIBES target) |
 | PR #17 | Pin GitHub Actions to commit SHAs + add Dependabot |
-| PR #18 | Reframe `ingest` as a per-scan change report; soften the "comprehensive manual" framing |
+| PR #19 | Reframe `ingest` as a per-scan change report; soften the "comprehensive manual" framing |
