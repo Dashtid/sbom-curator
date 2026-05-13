@@ -4,6 +4,7 @@ import click
 from rich.console import Console
 
 from sbom_curator import __version__
+from sbom_curator.curate.ingest import EditPlan
 from sbom_curator.curate.ingest import plan as build_plan
 from sbom_curator.curate.scope import dedupe_scan, drop_by_name_prefix
 from sbom_curator.curate.suggest import (
@@ -13,6 +14,7 @@ from sbom_curator.curate.suggest import (
 from sbom_curator.lint import lint as lint_document
 from sbom_curator.parsers.model import Component
 from sbom_curator.parsers.spdx import SpdxParseError, load
+from sbom_curator.reconcile.diff import Reconciliation
 from sbom_curator.reconcile.diff import reconcile as reconcile_components
 from sbom_curator.report.markdown import render, render_ingest_plan
 from sbom_curator.support.log import setup_logging
@@ -27,6 +29,17 @@ _PRODUCT_PREFIX_HELP = (
     "Drop scan packages whose name starts with PREFIX — the product's own "
     "assemblies a directory scan picks up (e.g. 'Hermes.'). Repeatable; "
     "case-insensitive."
+)
+
+_INGEST_GATES = ("added", "bumped", "review", "license")
+_RECONCILE_GATES = ("only-in-syft", "only-in-manual", "version", "license")
+_INGEST_FAIL_ON_HELP = (
+    "Exit 1 when any of the listed buckets is non-empty (default: never). "
+    f"Comma-separated; valid: {', '.join(_INGEST_GATES)}."
+)
+_RECONCILE_FAIL_ON_HELP = (
+    "Exit 1 when any of the listed buckets is non-empty (default: never). "
+    f"Comma-separated; valid: {', '.join(_RECONCILE_GATES)}."
 )
 
 
@@ -51,13 +64,16 @@ def cli(ctx: click.Context, verbose: bool) -> None:
               default=Path("artifacts"), show_default=True, help=_OUTPUT_HELP)
 @click.option("--product-prefix", "product_prefixes", multiple=True, metavar="PREFIX",
               help=_PRODUCT_PREFIX_HELP)
+@click.option("--fail-on", "fail_on", type=str, default=None, metavar="BUCKETS",
+              help=_INGEST_FAIL_ON_HELP)
 def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
-           product_prefixes: tuple[str, ...]) -> None:
+           product_prefixes: tuple[str, ...], fail_on: str | None) -> None:
     """Report what a scan changed relative to your SBOM: added / bumped / review.
 
     Writes a change report you act on by hand. This command does not
     modify the manual SBOM.
     """
+    gates = _parse_gates(fail_on, _INGEST_GATES)
     manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
 
     edit_plan = build_plan(manual_components, syft_components)
@@ -80,6 +96,10 @@ def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
         console.print(
             f"[blue]\\[i][/blue] {len(suggestions)} suggested annotation(s) — see the report"
         )
+    hit = _ingest_gate_hits(edit_plan, gates)
+    if hit:
+        console.print(f"[red][-][/red] gate hit: {', '.join(sorted(hit))}")
+        raise click.exceptions.Exit(code=1)
 
 
 @cli.command()
@@ -92,9 +112,12 @@ def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
               default=Path("artifacts"), show_default=True, help=_OUTPUT_HELP)
 @click.option("--product-prefix", "product_prefixes", multiple=True, metavar="PREFIX",
               help=_PRODUCT_PREFIX_HELP)
+@click.option("--fail-on", "fail_on", type=str, default=None, metavar="BUCKETS",
+              help=_RECONCILE_FAIL_ON_HELP)
 def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
-              product_prefixes: tuple[str, ...]) -> None:
+              product_prefixes: tuple[str, ...], fail_on: str | None) -> None:
     """Raw four-bucket diff of the two SBOMs (only-in-manual / only-in-Syft / disagreements)."""
+    gates = _parse_gates(fail_on, _RECONCILE_GATES)
     manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
 
     result = reconcile_components(manual_components, syft_components)
@@ -119,6 +142,10 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
         console.print(
             f"[blue]\\[i][/blue] {len(suggestions)} suggested annotation(s) — see the report"
         )
+    hit = _reconcile_gate_hits(result, gates)
+    if hit:
+        console.print(f"[red][-][/red] gate hit: {', '.join(sorted(hit))}")
+        raise click.exceptions.Exit(code=1)
 
 
 @cli.command(name="lint")
@@ -151,6 +178,50 @@ def _suggestions_from(
 ) -> tuple[CoversPrefixSuggestion, ...]:
     existing = {prefix for c in manual for prefix in c.covers_prefixes}
     return tuple(suggest_covers_prefixes(added, existing))
+
+
+def _parse_gates(value: str | None, allowed: tuple[str, ...]) -> set[str]:
+    """Split a comma-separated ``--fail-on`` value and validate it."""
+    if not value:
+        return set()
+    raw = [piece.strip().lower() for piece in value.split(",")]
+    gates = {piece for piece in raw if piece}
+    unknown = gates - set(allowed)
+    if unknown:
+        raise click.BadParameter(
+            f"unknown gate(s): {', '.join(sorted(unknown))}; "
+            f"valid: {', '.join(allowed)}",
+            param_hint="--fail-on",
+        )
+    return gates
+
+
+def _ingest_gate_hits(plan: EditPlan, gates: set[str]) -> set[str]:
+    hit: set[str] = set()
+    if "added" in gates and plan.added:
+        hit.add("added")
+    if "bumped" in gates and plan.bumped:
+        hit.add("bumped")
+    if "review" in gates and plan.reviews:
+        hit.add("review")
+    if "license" in gates and (
+        plan.keeps_with_license_change or any(b.license_changed for b in plan.bumped)
+    ):
+        hit.add("license")
+    return hit
+
+
+def _reconcile_gate_hits(result: Reconciliation, gates: set[str]) -> set[str]:
+    hit: set[str] = set()
+    if "only-in-syft" in gates and result.only_in_syft:
+        hit.add("only-in-syft")
+    if "only-in-manual" in gates and result.only_in_manual:
+        hit.add("only-in-manual")
+    if "version" in gates and result.version_mismatches:
+        hit.add("version")
+    if "license" in gates and result.license_mismatches:
+        hit.add("license")
+    return hit
 
 
 def _load_inputs(

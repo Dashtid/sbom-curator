@@ -188,6 +188,17 @@ sections:
   covers, the report proposes the exact `covers-prefix:` annotation that
   would absorb them. The curator decides whether one of their entries
   should own that family; nothing is auto-applied.
+
+To gate CI on findings, pass `--fail-on=BUCKETS`:
+
+```bash
+# Fail the build if the scan adds anything or bumps a version.
+sbom-curator ingest ... --fail-on added,bumped
+```
+
+Valid buckets for `ingest`: `added`, `bumped`, `review`, `license`. For
+`reconcile`: `only-in-syft`, `only-in-manual`, `version`, `license`.
+Default exit codes: 0 success, 1 gate hit, 2 parse failure.
 - **License changed (otherwise unchanged).** Entries that match on name
   and version but whose license string differs from the scan. Reconcile
   against upstream and fix the side that's wrong. (Only listed when *both*

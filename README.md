@@ -87,7 +87,8 @@ sbom-curator lint product.spdx
 scanner emits CycloneDX, convert first (`syft convert in.json -o
 spdx-json=out.spdx.json`) or re-scan with `-o spdx-json=...`. `ingest` writes
 `<output-dir>/<name>-ingest.md`; `reconcile` writes
-`<output-dir>/<name>-reconcile.md`. Exit code is `0` on success, `2` on parse
+`<output-dir>/<name>-reconcile.md`. Exit code is `0` on success, `1` when a
+`--fail-on` gate is hit (e.g. `--fail-on added,bumped` for CI), `2` on parse
 failure.
 
 A directory scan of a multi-assembly app (notably .NET) needs two kinds of

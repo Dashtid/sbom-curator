@@ -55,16 +55,6 @@ project config file (`sbom-curator.toml` or `--config path`). Not before
 — a flag or two on the command line is fine; a config layer with no
 settled set of settings to hold is speculative.
 
-### Configurable exit-code thresholds
-
-**Trigger:** someone wants to gate CI on reconciliation findings.
-
-Add a `--fail-on=version,license,only-in-syft` flag that maps to a
-non-zero exit when any selected bucket is non-empty. The
-`Reconciliation` dataclass already exposes the inputs (`version_mismatches`,
-`license_mismatches`, etc.). Default stays exit-0 — the artifact is the
-report; gating is opt-in.
-
 ### CHANGELOG and 0.1.0 tag
 
 **Trigger:** ready to cut a public release.
@@ -147,3 +137,4 @@ covers them.
 | PR #24 | `lint` subcommand — translate spdx-tools' opaque grammar errors into line-numbered actionable messages (`PackageVersion: NOASSERTION`, SPDX 2.3 §7.3); warn on packages `ingest`/`reconcile` would silently skip |
 | PR #25 | Auto-suggest `covers-prefix` — tight name clusters in *added* that no manual entry covers surface in a `## Suggested annotations` section with the exact annotation text |
 | PR #26 | `versions_equal` accepts the NuGet semver ↔ .NET assembly-version pattern (`4.4.1` ↔ `4.4.1.57983`, length pair (3, 4), first three components equal) — kills the spurious `Reactive` bump |
+| PR #27 | `--fail-on` on `ingest` (`added`, `bumped`, `review`, `license`) and `reconcile` (`only-in-syft`, `only-in-manual`, `version`, `license`) — exit 1 when any listed bucket is non-empty, so CI can gate on reconciliation findings |
