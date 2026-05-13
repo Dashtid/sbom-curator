@@ -190,3 +190,102 @@ def test_normalize_purl_returns_none_for_missing_or_non_purl_strings() -> None:
     assert _normalize_purl(None) is None
     assert _normalize_purl("") is None
     assert _normalize_purl("not-a-purl") is None
+
+
+# ----- prefix coverage -----
+
+
+def _umbrella(name: str, version: str = "1.0.0", *, covers: tuple[str, ...]) -> Component:
+    return Component(
+        name=name, version=version, source="manual", covers_prefixes=covers
+    )
+
+
+def test_covers_prefix_absorbs_matching_scan_entries_into_covered_bucket() -> None:
+    result = reconcile(
+        [_umbrella("Vortice", "3.2.0", covers=("Vortice.",))],
+        [
+            _syft("Vortice.Direct3D11", "3.2.0"),
+            _syft("Vortice.DXGI", "3.2.0"),
+            _syft("attrs", "25.4.0"),
+        ],
+    )
+    covered_names = [s.name for _m, s in result.covered]
+    assert covered_names == ["Vortice.Direct3D11", "Vortice.DXGI"]
+    # The umbrella covers but isn't consumed; it doesn't leak into only_in_manual.
+    assert result.only_in_manual == []
+    # Unrelated scan entries still flow to only_in_syft.
+    assert [c.name for c in result.only_in_syft] == ["attrs"]
+
+
+def test_covers_prefix_match_is_case_insensitive() -> None:
+    result = reconcile(
+        [_umbrella("Vortice", covers=("Vortice.",))],
+        [_syft("VORTICE.Direct3D11")],
+    )
+    assert len(result.covered) == 1
+
+
+def test_covers_prefix_longest_prefix_wins() -> None:
+    # "Vortice.WPF." is more specific than "Vortice." — it should claim
+    # "Vortice.WPF.Foo" even though both prefixes match.
+    result = reconcile(
+        [
+            _umbrella("Vortice", covers=("Vortice.",)),
+            _umbrella("Vortice WPF", covers=("Vortice.WPF.",)),
+        ],
+        [_syft("Vortice.WPF.Foo")],
+    )
+    assert len(result.covered) == 1
+    assert result.covered[0][0].name == "Vortice WPF"
+
+
+def test_covers_prefix_does_not_absorb_entries_already_matched_by_name() -> None:
+    # The scan entry "Vortice" name-matches the manual "Vortice" exactly;
+    # coverage only runs on what's still unmatched.
+    result = reconcile(
+        [_umbrella("Vortice", "3.2.0", covers=("Vortice.",))],
+        [_syft("Vortice", "3.2.0")],
+    )
+    assert len(result.in_both) == 1
+    assert result.covered == []
+
+
+def test_covers_prefix_does_not_absorb_entries_matched_by_purl() -> None:
+    # PURL match wins over coverage too.
+    result = reconcile(
+        [
+            Component(
+                name="Vortice",
+                version="3.2.0",
+                source="manual",
+                purl="pkg:nuget/Vortice.DXGI@3.2.0",
+                covers_prefixes=("Vortice.",),
+            )
+        ],
+        [_syft("Vortice.DXGI", "3.2.0", purl="pkg:nuget/Vortice.DXGI@3.2.0")],
+    )
+    assert len(result.in_both) == 1
+    assert result.covered == []
+
+
+def test_umbrella_with_no_matching_scan_entries_stays_in_only_in_manual() -> None:
+    # "I declared coverage but the family isn't installed" — visible to
+    # the curator, not absorbed silently.
+    result = reconcile(
+        [_umbrella("Vortice", covers=("Vortice.",))],
+        [_syft("attrs", "25.4.0")],
+    )
+    assert [c.name for c in result.only_in_manual] == ["Vortice"]
+    assert result.covered == []
+
+
+def test_blank_covers_prefix_is_ignored() -> None:
+    # A blank prefix would match everything — guard against accidental
+    # `covers-prefix:` (empty value) absorbing the world.
+    result = reconcile(
+        [_umbrella("Vortice", covers=("",))],
+        [_syft("attrs", "25.4.0")],
+    )
+    assert result.covered == []
+    assert [c.name for c in result.only_in_syft] == ["attrs"]

@@ -18,3 +18,8 @@ class Component:
     source: Source
     purl: str | None = None
     license: str | None = None
+    covers_prefixes: tuple[str, ...] = ()
+    """Name prefixes this manual entry declares it covers. Populated from a
+    ``sbom-curator covers-prefix: <PREFIX>`` line in the package's
+    ``PackageComment``; only set for ``source == "manual"`` components, and
+    used by the reconciler's prefix-coverage pass."""

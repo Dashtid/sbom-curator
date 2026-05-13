@@ -58,23 +58,27 @@ fixture (customer-confidential), so the work needs an anonymized or
 synthetic .NET pair to test against, or it's designed against the live
 Affinity files and tested with a small synthetic .NET fixture.
 
-The next step toward this:
+Family-prefix coverage shipped in PR #23 (see Done). Remaining residuals
+on this front:
 
-### Manual entry covers a name prefix (the family ↔ package fix)
+### Coverage residuals
 
-**Trigger:** met (Affinity: `Vortice` ↔ five `Vortice.*`; `Infragistics
-Ultimate` ↔ twelve `Infragistics.WPF.*`; `System.Reactive` ↔ four
-`System.Reactive.*`). Let a manual entry declare it *covers* a name
-prefix, so the matcher absorbs every scan entry under that prefix into
-that one manual entry instead of flooding *added*. **Design questions to
-settle before building:** (a) how the curator expresses coverage — a glob
-in the SPDX `PackageName` (`Vortice.*`)? an SPDX annotation /
-`PackageComment` convention (`coversPrefix: Vortice.`)? a side-file?;
-(b) what a covered scan entry becomes — silently absorbed (counted, not
-listed), or listed under the covering manual entry?; (c) version
-semantics — does the manual's `Vortice 3.2.0` get checked against each
-`Vortice.* 3.2.0`, or is coverage purely about names? Must not absorb a
-real distinct dependency that happens to share the prefix.
+**(a)** Glob support beyond literal name prefix — `Vortice.*` (already
+works as a prefix) plus more complex globs (`Vortice.*WPF.*`,
+`Infragistics.[A-Z]*`). Trigger: a real curator entry whose desired
+coverage can't be expressed as a single prefix.
+**(b)** Auto-detect candidate prefixes — propose a `covers-prefix` line
+when ingest sees a cluster of >N scan packages sharing a prefix that
+match nothing on the manual side. Output as a suggestion in the report,
+not applied automatically. Trigger: curators forgetting to declare
+coverage on entries they know are coarse.
+**(c)** Version sanity — currently coverage is informational (no
+version comparison between umbrella and absorbed sub-packages) because
+schemes diverge between the umbrella (e.g. marketing `2022.2`) and the
+sub-packages (`22.2.19`). Could surface a warning when the *spread* of
+sub-package versions is unusually wide (suggests two distinct family
+versions installed side-by-side). Trigger: a real run where this misses
+something the curator wishes had been flagged.
 
 ### `lint` subcommand — preflight the manual SBOM (trigger met)
 
@@ -211,3 +215,4 @@ covers them.
 | PR #20 | `--product-prefix` — drop the product's own assemblies (e.g. `Hermes.*`) from the scan side |
 | PR #21 | Scan-side hygiene — drop `UNKNOWN`-version / path-named entries (parser); `dedupe_scan` collapses exact dups + precision-variant pairs |
 | PR #22 | PURL-aware matching — match manual↔scan on equal version-free PURLs before falling back to lowercased name |
+| PR #23 | Family-prefix coverage — `PackageComment: sbom-curator covers-prefix: <X>` on a manual entry absorbs unmatched scan packages whose name starts with `<X>` into a dedicated `covered` bucket |

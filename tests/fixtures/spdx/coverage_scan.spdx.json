@@ -1,0 +1,47 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "coverage-test-scan",
+  "documentNamespace": "https://example.invalid/coverage-test-scan",
+  "creationInfo": {
+    "created": "2026-05-12T00:00:00Z",
+    "creators": ["Tool: syft-like"]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-DocumentRoot-Directory-app",
+      "name": "app",
+      "versionInfo": "1.0.0",
+      "downloadLocation": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Vortice-DXGI",
+      "name": "Vortice.DXGI",
+      "versionInfo": "3.2.0",
+      "downloadLocation": "NOASSERTION",
+      "licenseDeclared": "MIT"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-Vortice-Direct3D11",
+      "name": "Vortice.Direct3D11",
+      "versionInfo": "3.2.0",
+      "downloadLocation": "NOASSERTION",
+      "licenseDeclared": "MIT"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-attrs",
+      "name": "attrs",
+      "versionInfo": "25.4.0",
+      "downloadLocation": "NOASSERTION",
+      "licenseDeclared": "MIT"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-DocumentRoot-Directory-app",
+      "relationshipType": "DESCRIBES"
+    }
+  ]
+}

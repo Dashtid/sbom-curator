@@ -1,6 +1,7 @@
 """Parser for SPDX 2.x SBOMs (JSON, tag-value, YAML, RDF/XML)."""
 
 import logging
+import re
 from pathlib import Path
 
 from license_expression import LicenseExpression
@@ -87,6 +88,7 @@ def load(path: Path, source: Source = "manual") -> list[Component]:
                 source=source,
                 purl=_extract_purl(pkg),
                 license=_extract_license(pkg),
+                covers_prefixes=_extract_covers_prefixes(pkg) if source == "manual" else (),
             )
         )
     components.sort(key=lambda c: (c.name.lower(), c.version))
@@ -135,3 +137,25 @@ def _extract_license(pkg: SpdxPackage) -> str | None:
         if isinstance(value, LicenseExpression):
             return str(value)
     return None
+
+
+_COVERS_PREFIX_LINE = re.compile(
+    r"^\s*sbom-curator\s+covers-prefix\s*:\s*(\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _extract_covers_prefixes(pkg: SpdxPackage) -> tuple[str, ...]:
+    """Pull ``sbom-curator covers-prefix:`` declarations out of the comment.
+
+    The curator declares family coverage by adding one or more lines of the
+    form ``sbom-curator covers-prefix: <PREFIX>`` to the package's
+    ``PackageComment``. Multiple lines are allowed; non-matching lines are
+    ignored, so the comment can still hold normal notes. The leader is
+    case-insensitive; the prefix itself is preserved as written (the
+    reconciler compares case-insensitively).
+    """
+    comment = getattr(pkg, "comment", None)
+    if not isinstance(comment, str) or not comment:
+        return ()
+    return tuple(match.group(1) for match in _COVERS_PREFIX_LINE.finditer(comment))

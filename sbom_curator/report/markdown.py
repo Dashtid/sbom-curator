@@ -15,6 +15,7 @@ when buckets fluctuate.
 from sbom_curator.curate.ingest import (
     AddAction,
     BumpAction,
+    CoveredAction,
     EditPlan,
     KeepAction,
     ReviewAction,
@@ -36,11 +37,13 @@ def render(reconciliation: Reconciliation, *, name: str) -> str:
     lines.append(f"- In both, agree on version: {agreed}")
     lines.append(f"- Version disagreements: {len(reconciliation.version_mismatches)}")
     lines.append(f"- License disagreements: {len(reconciliation.license_mismatches)}")
+    lines.append(f"- Covered by family entries: {len(reconciliation.covered)}")
     lines.append("")
     lines.extend(_render_single_section("Only in manual", reconciliation.only_in_manual))
     lines.extend(_render_single_section("Only in Syft", reconciliation.only_in_syft))
     lines.extend(_render_pair_section("Version disagreements", reconciliation.version_mismatches))
     lines.extend(_render_pair_section("License disagreements", reconciliation.license_mismatches))
+    lines.extend(_render_covered_pairs(reconciliation.covered))
     return "\n".join(lines) + "\n"
 
 
@@ -63,11 +66,13 @@ def render_ingest_plan(edit_plan: EditPlan, *, name: str) -> str:
     lines.append(f"- Bumped: {len(edit_plan.bumped)} (in both, version differs)")
     lines.append(f"- Only in your SBOM: {len(edit_plan.reviews)} (not in the scan — see below)")
     lines.append(f"- Unchanged: {len(edit_plan.keeps)}{keep_note}")
+    lines.append(f"- Covered by family entries: {len(edit_plan.covered)}")
     lines.append("")
     lines.extend(_render_added(edit_plan.added))
     lines.extend(_render_bumped(edit_plan.bumped))
     lines.extend(_render_reviews(edit_plan.reviews))
     lines.extend(_render_license_changes(changed))
+    lines.extend(_render_covered(edit_plan.covered))
     return "\n".join(lines) + "\n"
 
 
@@ -182,6 +187,43 @@ def _render_license_changes(keeps: list[KeepAction]) -> list[str]:
             _row(_cell(k.manual.name), _cell(k.manual.version),
                  _cell(k.manual.license), _cell(k.syft.license))
         )
+    out.append("")
+    return out
+
+
+def _render_covered(covered: list[CoveredAction]) -> list[str]:
+    out = [
+        "## Covered by a family entry",
+        "",
+        "_Scan packages absorbed by an entry's `covers-prefix` annotation — "
+        "not in 'added' because you've declared them already._",
+        "",
+    ]
+    if not covered:
+        out += ["(none)", ""]
+        return out
+    out.append("| Name | Version | Covered by (your entry) |")
+    out.append("| --- | --- | --- |")
+    for c in covered:
+        out.append(_row(_cell(c.syft.name), _cell(c.syft.version), _cell(c.manual.name)))
+    out.append("")
+    return out
+
+
+def _render_covered_pairs(covered: list[tuple[Component, Component]]) -> list[str]:
+    out = [
+        "## Covered by a family entry",
+        "",
+        "_Scan packages absorbed by an entry's `covers-prefix` annotation._",
+        "",
+    ]
+    if not covered:
+        out += ["(none)", ""]
+        return out
+    out.append("| Name | Version | Covered by (your entry) |")
+    out.append("| --- | --- | --- |")
+    for manual, syft in covered:
+        out.append(_row(_cell(syft.name), _cell(syft.version), _cell(manual.name)))
     out.append("")
     return out
 

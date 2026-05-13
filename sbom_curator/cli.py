@@ -66,6 +66,10 @@ def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
     console.print(f"[yellow][!][/yellow] bumped: {len(edit_plan.bumped)}")
     console.print(f"[blue]\\[i][/blue] only in your SBOM: {len(edit_plan.reviews)}")
     console.print(f"[green][+][/green] unchanged: {len(edit_plan.keeps)}{keep_note}")
+    if edit_plan.covered:
+        console.print(
+            f"[green][+][/green] covered by family entries: {len(edit_plan.covered)}"
+        )
 
 
 @cli.command()
@@ -96,6 +100,10 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
                   f"{len(result.license_mismatches)}")
     console.print(f"[yellow][!][/yellow] only in Syft: {len(result.only_in_syft)}")
     console.print(f"[blue]\\[i][/blue] only in manual: {len(result.only_in_manual)}")
+    if result.covered:
+        console.print(
+            f"[green][+][/green] covered by family entries: {len(result.covered)}"
+        )
 
 
 def _load_inputs(

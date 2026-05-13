@@ -1,0 +1,24 @@
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: coverage-test
+DocumentNamespace: https://example.invalid/coverage-test
+Creator: Tool: hand-curated
+Created: 2026-05-12T00:00:00Z
+
+PackageName: app
+SPDXID: SPDXRef-Package-App
+PackageVersion: 1.0.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: NOASSERTION
+PackageLicenseDeclared: NOASSERTION
+
+Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-Package-App
+
+PackageName: Vortice
+SPDXID: SPDXRef-Package-Vortice
+PackageVersion: 3.2.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+PackageComment: <text>sbom-curator covers-prefix: Vortice.</text>

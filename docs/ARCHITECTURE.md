@@ -50,20 +50,27 @@ merges by hand. sbom-curator produces that delta — a *change report*.
    440), compare licenses as SPDX expressions. (Vendor-prefix / coarse-vs-fine
    name normalization is not yet implemented — see BACKLOG.)
 
-4. **Match** (`reconcile`). Two passes: first by **PURL identity** (same
+4. **Match** (`reconcile`). Three passes: first by **PURL identity** (same
    package URL after lowercasing, URL-decoding, and dropping the
    `@version` / `?qualifiers` / `#subpath` — so a curator entry named
    `CommunityToolkit` with PURL `pkg:nuget/CommunityToolkit.Mvvm@8.2.2`
-   matches a scan entry `CommunityToolkit.Mvvm`), then whatever is still
-   unmatched by **lowercased name**. PURL match wins; a component is
-   consumed by at most one match. Result is three buckets:
+   matches a scan entry `CommunityToolkit.Mvvm`); then whatever is still
+   unmatched by **lowercased name**; finally **family coverage** —
+   a manual entry can declare `PackageComment: <text>sbom-curator
+   covers-prefix: Vortice.</text>` and the matcher absorbs every still-
+   unmatched scan package whose lowercased name starts with that prefix
+   into a separate `covered` bucket (the umbrella manual entry is not
+   consumed — one umbrella can cover many sub-packages; longest matching
+   prefix wins). Result is four buckets:
    - **Only in manual** — vendored/static entries the scanner can't see, or
-     entries the scan lists under a different name *with no PURL to bridge
-     it*, or stale entries.
+     entries the scan lists under a different name *with no PURL or
+     covers-prefix to bridge it*, or stale entries.
    - **Only in Syft** — candidates to add. Some don't ship (build tooling).
    - **In both** — cross-check version and license; flag mismatches. (A
      PURL match with differing versions lands here, so it surfaces as a
      bump — that's intentional.)
+   - **Covered** — scan packages absorbed by a manual entry's
+     `covers-prefix`; informational, not version-checked.
 
 5. **Plan** (`ingest`). Relabel the buckets as a change report, splitting
    `in both` on PEP 440 version equivalence: **added** (only-in-Syft),

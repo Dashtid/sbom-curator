@@ -104,6 +104,40 @@ def test_ingest_command_product_prefix_drops_scan_packages(tmp_path: Path) -> No
     assert "[i] filtered 6 scan packages matching: types-" in result.output
 
 
+def test_ingest_command_reports_covered_family_packages(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(SPDX_FIXTURES / "coverage_manual.spdx"),
+            "--syft", str(SPDX_FIXTURES / "coverage_scan.spdx.json"),
+            "--name", "coverage-1.0.0",
+            "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "[+] covered by family entries: 2" in result.output
+    report = (tmp_path / "out" / "coverage-1.0.0-ingest.md").read_text(encoding="utf-8")
+    assert "## Covered by a family entry" in report
+    assert "| Vortice.DXGI | 3.2.0 | Vortice |" in report
+    assert "| Vortice.Direct3D11 | 3.2.0 | Vortice |" in report
+
+
+def test_reconcile_command_reports_covered_family_packages(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reconcile",
+            "--manual", str(SPDX_FIXTURES / "coverage_manual.spdx"),
+            "--syft", str(SPDX_FIXTURES / "coverage_scan.spdx.json"),
+            "--name", "coverage-1.0.0",
+            "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "[+] covered by family entries: 2" in result.output
+
+
 def test_ingest_command_collapses_duplicate_scan_packages(tmp_path: Path) -> None:
     result = CliRunner().invoke(
         cli,
