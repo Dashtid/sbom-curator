@@ -22,7 +22,7 @@ two commands share one source of truth.
 and edits by hand; an `--apply` mode, if it ever lands, stays opt-in.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sbom_curator.parsers.model import Component
 from sbom_curator.reconcile.diff import reconcile
@@ -80,6 +80,19 @@ class ReviewAction:
 
 
 @dataclass(frozen=True)
+class CoveredAction:
+    """A scan entry absorbed by a manual entry's ``covers-prefix`` declaration.
+
+    The umbrella manual entry is not consumed (one umbrella can cover many
+    sub-packages); ``manual`` is the covering entry, ``syft`` the absorbed
+    scan entry.
+    """
+
+    manual: Component
+    syft: Component
+
+
+@dataclass(frozen=True)
 class EditPlan:
     """The per-scan change report, derived from a reconciliation.
 
@@ -92,6 +105,7 @@ class EditPlan:
     bumped: list[BumpAction]
     reviews: list[ReviewAction]
     keeps: list[KeepAction]
+    covered: list[CoveredAction] = field(default_factory=list)
 
     @property
     def keeps_with_license_change(self) -> list[KeepAction]:
@@ -104,7 +118,8 @@ def plan(manual: list[Component], syft: list[Component]) -> EditPlan:
     ``in_both`` pairs split on :func:`versions_equal`: equal versions
     become :class:`KeepAction`, unequal become :class:`BumpAction`.
     ``only_in_syft`` becomes :class:`AddAction`; ``only_in_manual``
-    becomes :class:`ReviewAction`.
+    becomes :class:`ReviewAction`; ``covered`` pairs become
+    :class:`CoveredAction`.
     """
     r = reconcile(manual, syft)
     bumped = [BumpAction(manual=m, syft=s) for m, s in r.in_both
@@ -113,4 +128,5 @@ def plan(manual: list[Component], syft: list[Component]) -> EditPlan:
              if versions_equal(m.version, s.version)]
     added = [AddAction(syft=c) for c in r.only_in_syft]
     reviews = [ReviewAction(manual=c) for c in r.only_in_manual]
-    return EditPlan(added=added, bumped=bumped, reviews=reviews, keeps=keeps)
+    covered = [CoveredAction(manual=m, syft=s) for m, s in r.covered]
+    return EditPlan(added=added, bumped=bumped, reviews=reviews, keeps=keeps, covered=covered)

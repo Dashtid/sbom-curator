@@ -1,6 +1,7 @@
 from sbom_curator.curate.ingest import (
     AddAction,
     BumpAction,
+    CoveredAction,
     EditPlan,
     KeepAction,
     ReviewAction,
@@ -48,7 +49,8 @@ def test_render_renders_empty_buckets_as_none_placeholders() -> None:
     assert "## Only in Syft" in out
     assert "## Version disagreements" in out
     assert "## License disagreements" in out
-    assert out.count("(none)") == 4
+    assert "## Covered by a family entry" in out
+    assert out.count("(none)") == 5
 
 
 def test_render_only_in_manual_table() -> None:
@@ -138,7 +140,8 @@ def test_render_change_report_empty_sections_render_as_none() -> None:
     assert "## Bumped" in out
     assert "## Only in your SBOM" in out
     assert "## License changed (otherwise unchanged)" in out
-    assert out.count("(none)") == 4
+    assert "## Covered by a family entry" in out
+    assert out.count("(none)") == 5
 
 
 def test_render_change_report_added_table() -> None:
@@ -234,3 +237,44 @@ def test_render_change_report_escapes_pipe_characters() -> None:
 
     assert "weird\\|name" in out
     assert "A \\| B" in out
+
+
+# ----- Covered by a family entry -----
+
+
+def test_render_change_report_covered_section() -> None:
+    manual = _component("Vortice", "3.2.0")
+    sub_a = _component("Vortice.DXGI", "3.2.0", source="syft")
+    sub_b = _component("Vortice.Direct3D11", "3.2.0", source="syft")
+    out = render_ingest_plan(
+        EditPlan(
+            added=[],
+            bumped=[],
+            reviews=[],
+            keeps=[],
+            covered=[
+                CoveredAction(manual=manual, syft=sub_a),
+                CoveredAction(manual=manual, syft=sub_b),
+            ],
+        ),
+        name="x",
+    )
+
+    assert "- Covered by family entries: 2" in out
+    assert "## Covered by a family entry" in out
+    assert "| Name | Version | Covered by (your entry) |" in out
+    assert "| Vortice.DXGI | 3.2.0 | Vortice |" in out
+    assert "| Vortice.Direct3D11 | 3.2.0 | Vortice |" in out
+
+
+def test_render_reconcile_report_covered_section() -> None:
+    manual = _component("Vortice", "3.2.0")
+    sub = _component("Vortice.DXGI", "3.2.0", source="syft")
+    rec = Reconciliation(
+        only_in_manual=[], only_in_syft=[], in_both=[], covered=[(manual, sub)]
+    )
+    out = render(rec, name="x")
+
+    assert "- Covered by family entries: 1" in out
+    assert "## Covered by a family entry" in out
+    assert "| Vortice.DXGI | 3.2.0 | Vortice |" in out

@@ -145,14 +145,16 @@ disagreements: 2 / license disagreements: 1`). Empty sections render as
 
 ## v1 limitations (deliberate)
 
-- **Matching is PURL first, then exact lowercase name.** If your entry and a
-  scan entry share a package URL (compared version-free), they match even when
-  the names differ — so recording `pkg:nuget/System.Reactive@4.4.1` on your
-  `Reactive` entry bridges it to the scan's `System.Reactive`. Without a PURL
-  to bridge them, name matching is literal: `Reactive` ≠ `System.Reactive`,
-  `DCMTK` ≠ the 40 `dcm*` tool binaries, `Infragistics Ultimate` ≠
-  `Infragistics.WPF.*` (a coarse entry covering many fine-grained packages
-  needs the name-coverage work — see BACKLOG).
+- **Matching is PURL first, then exact lowercase name, then family coverage.**
+  PURL match: if your entry and a scan entry share a package URL (compared
+  version-free), they match even when the names differ — recording
+  `pkg:nuget/System.Reactive@4.4.1` on your `Reactive` entry bridges it to
+  the scan's `System.Reactive`. Name match: literal lowercased equality.
+  Family coverage: add `PackageComment: <text>sbom-curator covers-prefix:
+  Vortice.</text>` to an entry and the matcher absorbs every still-unmatched
+  scan package whose name starts with that prefix — `Vortice` covers
+  `Vortice.DXGI`, `Vortice.Direct3D11`, etc. Covered packages land in a
+  dedicated `## Covered by a family entry` section, not in `## Added`.
 - **Version equivalence** uses PEP 440. `1.0` and `1.0.0` agree;
   `1.0.0+local` is a distinct release. Unparseable versions fall back to strict
   string equality.

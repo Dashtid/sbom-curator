@@ -162,14 +162,20 @@ sections:
 - **Bumped.** In both, at different versions. Usually the scan side is the
   truth (it scanned the shipped build); update your entry. The row flags
   whether the license also changed.
-- **Only in your SBOM.** The scan matched nothing — neither by PURL nor by
-  name. Three possibilities: (a) the scanner can't see it (vendored /
-  statically linked — fine, leave it), (b) the scan lists it under a
-  different name *and* your entry has no PURL to bridge the two — add the
-  canonical PURL to your entry and the next ingest will match it (the
-  remaining cases, e.g. a coarse `Vortice` vs the individual `Vortice.*`
-  packages, need the name-coverage work — see [`BACKLOG.md`](../BACKLOG.md)),
-  or (c) it's genuinely gone (then remove it).
+- **Only in your SBOM.** The scan matched nothing — neither by PURL, by name,
+  nor by family coverage. Three possibilities: (a) the scanner can't see it
+  (vendored / statically linked — fine, leave it), (b) the scan lists it
+  under a different name — add the canonical PURL to your entry to bridge a
+  rename, or for a coarse entry covering many fine-grained scan packages,
+  declare it: `PackageComment: <text>sbom-curator covers-prefix:
+  Vortice.</text>` makes a `Vortice` entry absorb every `Vortice.*` in the
+  scan, or (c) it's genuinely gone (then remove it).
+- **Covered by a family entry.** Scan packages absorbed by one of your
+  entries' `covers-prefix` declarations — not in *added* because you've
+  already declared coverage. Each absorbed package is listed with its
+  version so versions are still auditable, but the section is informational
+  (no automatic version checks against the umbrella entry — version schemes
+  often differ between the umbrella and its sub-packages).
 - **License changed (otherwise unchanged).** Entries that match on name
   and version but whose license string differs from the scan. Reconcile
   against upstream and fix the side that's wrong. (Only listed when *both*

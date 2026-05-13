@@ -27,6 +27,18 @@ def test_load_skips_unknown_version_and_path_like_names() -> None:
     assert not any("\\" in n for n in names)
 
 
+def test_load_extracts_covers_prefixes_from_package_comment() -> None:
+    by_name = {c.name: c for c in load(FIXTURES / "coverage_manual.spdx", source="manual")}
+    assert by_name["Vortice"].covers_prefixes == ("Vortice.",)
+
+
+def test_load_ignores_covers_prefixes_on_the_scan_side() -> None:
+    # The annotation is the curator's; a scan that happens to ship the
+    # same comment text should never be interpreted as declaring coverage.
+    by_name = {c.name: c for c in load(FIXTURES / "coverage_manual.spdx", source="syft")}
+    assert by_name["Vortice"].covers_prefixes == ()
+
+
 def test_load_skips_packages_sharing_a_name_with_the_described_element() -> None:
     # Mirrors a Syft directory scan: the document DESCRIBES a synthetic
     # "DocumentRoot-Directory-widget" package, and Syft also lists the
