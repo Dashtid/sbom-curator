@@ -124,6 +124,10 @@ def test_purl_match_links_components_with_different_names() -> None:
 
 
 def test_purl_match_ignores_version_qualifiers_and_subpath() -> None:
+    # Manual `8.2.2` (NuGet) paired with scan `8.2.2.1+sha` (assembly
+    # revision of the same release) via PURL. Versions are still
+    # compared on the pair; the NuGet semver <-> .NET assembly-revision
+    # rule (versions_equal) reads them as agreement, so no bump.
     result = reconcile(
         [_manual("ToolkitMvvm", "8.2.2", purl="pkg:nuget/CommunityToolkit.Mvvm@8.2.2")],
         [
@@ -135,8 +139,7 @@ def test_purl_match_ignores_version_qualifiers_and_subpath() -> None:
         ],
     )
     assert len(result.in_both) == 1
-    # Versions still compared on the pair -> a real disagreement surfaces.
-    assert len(result.version_mismatches) == 1
+    assert result.version_mismatches == []
 
 
 def test_purl_match_falls_back_to_name_when_one_side_lacks_a_purl() -> None:
