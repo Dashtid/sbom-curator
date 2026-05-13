@@ -191,6 +191,71 @@ def test_ingest_command_collapses_duplicate_scan_packages(tmp_path: Path) -> Non
     assert "[i] collapsed 2 duplicate scan packages" in result.output
 
 
+def test_ingest_command_fail_on_added_exits_one_when_bucket_non_empty(
+    tmp_path: Path,
+) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(DOGFOOD / "manual.spdx"),
+            "--syft", str(DOGFOOD / "syft.spdx.json"),
+            "--name", "dicom-fuzzer-1.11.0",
+            "--output-dir", str(tmp_path / "out"),
+            "--fail-on", "added",
+        ],
+    )
+    # The dogfood scan adds ~74 packages so the gate fires.
+    assert result.exit_code == 1, result.output
+    assert "gate hit: added" in result.output
+
+
+def test_ingest_command_no_gate_means_exit_zero(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(DOGFOOD / "manual.spdx"),
+            "--syft", str(DOGFOOD / "syft.spdx.json"),
+            "--name", "dicom-fuzzer-1.11.0",
+            "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_ingest_command_fail_on_unknown_bucket_exits_two(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(DOGFOOD / "manual.spdx"),
+            "--syft", str(DOGFOOD / "syft.spdx.json"),
+            "--name", "dicom-fuzzer-1.11.0",
+            "--output-dir", str(tmp_path / "out"),
+            "--fail-on", "bogus",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "unknown gate" in result.output or "Invalid value" in result.output
+
+
+def test_reconcile_command_fail_on_only_in_syft_exits_one(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reconcile",
+            "--manual", str(DOGFOOD / "manual.spdx"),
+            "--syft", str(DOGFOOD / "syft.spdx.json"),
+            "--name", "dicom-fuzzer-1.11.0",
+            "--output-dir", str(tmp_path / "out"),
+            "--fail-on", "only-in-syft",
+        ],
+    )
+    assert result.exit_code == 1, result.output
+    assert "gate hit: only-in-syft" in result.output
+
+
 def test_ingest_command_reports_parse_error_with_exit_code_two(tmp_path: Path) -> None:
     bad = tmp_path / "bad.spdx"
     bad.write_text("not spdx at all", encoding="utf-8")
