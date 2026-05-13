@@ -20,11 +20,17 @@ from sbom_curator.curate.ingest import (
     KeepAction,
     ReviewAction,
 )
+from sbom_curator.curate.suggest import CoversPrefixSuggestion
 from sbom_curator.parsers.model import Component
 from sbom_curator.reconcile.diff import Reconciliation
 
 
-def render(reconciliation: Reconciliation, *, name: str) -> str:
+def render(
+    reconciliation: Reconciliation,
+    *,
+    name: str,
+    suggestions: tuple[CoversPrefixSuggestion, ...] = (),
+) -> str:
     """Format a reconciliation as a Markdown triage report."""
     agreed = len(reconciliation.in_both) - len(reconciliation.version_mismatches)
     lines: list[str] = []
@@ -38,16 +44,23 @@ def render(reconciliation: Reconciliation, *, name: str) -> str:
     lines.append(f"- Version disagreements: {len(reconciliation.version_mismatches)}")
     lines.append(f"- License disagreements: {len(reconciliation.license_mismatches)}")
     lines.append(f"- Covered by family entries: {len(reconciliation.covered)}")
+    lines.append(f"- Suggested annotations: {len(suggestions)}")
     lines.append("")
     lines.extend(_render_single_section("Only in manual", reconciliation.only_in_manual))
     lines.extend(_render_single_section("Only in Syft", reconciliation.only_in_syft))
     lines.extend(_render_pair_section("Version disagreements", reconciliation.version_mismatches))
     lines.extend(_render_pair_section("License disagreements", reconciliation.license_mismatches))
     lines.extend(_render_covered_pairs(reconciliation.covered))
+    lines.extend(_render_suggestions(suggestions))
     return "\n".join(lines) + "\n"
 
 
-def render_ingest_plan(edit_plan: EditPlan, *, name: str) -> str:
+def render_ingest_plan(
+    edit_plan: EditPlan,
+    *,
+    name: str,
+    suggestions: tuple[CoversPrefixSuggestion, ...] = (),
+) -> str:
     """Format a change report — what the latest scan changed, relative to your SBOM.
 
     Unchanged entries are counted in the summary, not enumerated; the
@@ -67,12 +80,14 @@ def render_ingest_plan(edit_plan: EditPlan, *, name: str) -> str:
     lines.append(f"- Only in your SBOM: {len(edit_plan.reviews)} (not in the scan — see below)")
     lines.append(f"- Unchanged: {len(edit_plan.keeps)}{keep_note}")
     lines.append(f"- Covered by family entries: {len(edit_plan.covered)}")
+    lines.append(f"- Suggested annotations: {len(suggestions)}")
     lines.append("")
     lines.extend(_render_added(edit_plan.added))
     lines.extend(_render_bumped(edit_plan.bumped))
     lines.extend(_render_reviews(edit_plan.reviews))
     lines.extend(_render_license_changes(changed))
     lines.extend(_render_covered(edit_plan.covered))
+    lines.extend(_render_suggestions(suggestions))
     return "\n".join(lines) + "\n"
 
 
@@ -225,6 +240,37 @@ def _render_covered_pairs(covered: list[tuple[Component, Component]]) -> list[st
     for manual, syft in covered:
         out.append(_row(_cell(syft.name), _cell(syft.version), _cell(manual.name)))
     out.append("")
+    return out
+
+
+def _render_suggestions(
+    suggestions: tuple[CoversPrefixSuggestion, ...],
+) -> list[str]:
+    out = [
+        "## Suggested annotations",
+        "",
+        "_Tight name clusters in `added` that no manual entry covers. If "
+        "one of your entries should own them, add a `covers-prefix:` "
+        "annotation; otherwise ignore._",
+        "",
+    ]
+    if not suggestions:
+        out += ["(none)", ""]
+        return out
+    for suggestion in suggestions:
+        out.append(
+            f"- **`{suggestion.prefix}`** — {len(suggestion.packages)} scan "
+            f"packages: " + ", ".join(f"`{p}`" for p in suggestion.packages[:5])
+            + ("." if len(suggestion.packages) <= 5
+               else f", … (and {len(suggestion.packages) - 5} more).")
+        )
+        out.append("")
+        out.append(
+            f"  Add to the covering manual entry: "
+            f"`PackageComment: <text>sbom-curator covers-prefix: "
+            f"{suggestion.prefix}</text>`"
+        )
+        out.append("")
     return out
 
 

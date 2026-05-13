@@ -104,6 +104,42 @@ def test_ingest_command_product_prefix_drops_scan_packages(tmp_path: Path) -> No
     assert "[i] filtered 6 scan packages matching: types-" in result.output
 
 
+def test_ingest_command_suggests_covers_prefix_for_added_cluster(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "ingest",
+            "--manual", str(SPDX_FIXTURES / "tagvalue_minimal.spdx"),
+            "--syft", str(SPDX_FIXTURES / "cluster_scan.spdx.json"),
+            "--name", "suggest-1.0.0",
+            "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "1 suggested annotation" in result.output
+    report = (tmp_path / "out" / "suggest-1.0.0-ingest.md").read_text(encoding="utf-8")
+    assert "## Suggested annotations" in report
+    assert "**`Vortice.`**" in report
+    assert "covers-prefix: Vortice." in report
+
+
+def test_reconcile_command_suggests_covers_prefix_for_only_in_syft_cluster(
+    tmp_path: Path,
+) -> None:
+    result = CliRunner().invoke(
+        cli,
+        [
+            "reconcile",
+            "--manual", str(SPDX_FIXTURES / "tagvalue_minimal.spdx"),
+            "--syft", str(SPDX_FIXTURES / "cluster_scan.spdx.json"),
+            "--name", "suggest-1.0.0",
+            "--output-dir", str(tmp_path / "out"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "1 suggested annotation" in result.output
+
+
 def test_ingest_command_reports_covered_family_packages(tmp_path: Path) -> None:
     result = CliRunner().invoke(
         cli,

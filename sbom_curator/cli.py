@@ -6,6 +6,10 @@ from rich.console import Console
 from sbom_curator import __version__
 from sbom_curator.curate.ingest import plan as build_plan
 from sbom_curator.curate.scope import dedupe_scan, drop_by_name_prefix
+from sbom_curator.curate.suggest import (
+    CoversPrefixSuggestion,
+    suggest_covers_prefixes,
+)
 from sbom_curator.lint import lint as lint_document
 from sbom_curator.parsers.model import Component
 from sbom_curator.parsers.spdx import SpdxParseError, load
@@ -57,7 +61,8 @@ def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
     manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
 
     edit_plan = build_plan(manual_components, syft_components)
-    report = render_ingest_plan(edit_plan, name=name)
+    suggestions = _suggestions_from(manual_components, [a.syft for a in edit_plan.added])
+    report = render_ingest_plan(edit_plan, name=name, suggestions=suggestions)
     out_path = _write(output_dir, f"{name}-ingest.md", report)
 
     changed = len(edit_plan.keeps_with_license_change)
@@ -70,6 +75,10 @@ def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
     if edit_plan.covered:
         console.print(
             f"[green][+][/green] covered by family entries: {len(edit_plan.covered)}"
+        )
+    if suggestions:
+        console.print(
+            f"[blue]\\[i][/blue] {len(suggestions)} suggested annotation(s) — see the report"
         )
 
 
@@ -89,7 +98,8 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
     manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
 
     result = reconcile_components(manual_components, syft_components)
-    report = render(result, name=name)
+    suggestions = _suggestions_from(manual_components, result.only_in_syft)
+    report = render(result, name=name, suggestions=suggestions)
     out_path = _write(output_dir, f"{name}-reconcile.md", report)
 
     agreed = len(result.in_both) - len(result.version_mismatches)
@@ -104,6 +114,10 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
     if result.covered:
         console.print(
             f"[green][+][/green] covered by family entries: {len(result.covered)}"
+        )
+    if suggestions:
+        console.print(
+            f"[blue]\\[i][/blue] {len(suggestions)} suggested annotation(s) — see the report"
         )
 
 
@@ -130,6 +144,13 @@ def lint_cmd(path: Path) -> None:
     )
     if errors:
         raise click.exceptions.Exit(code=2)
+
+
+def _suggestions_from(
+    manual: list[Component], added: list[Component]
+) -> tuple[CoversPrefixSuggestion, ...]:
+    existing = {prefix for c in manual for prefix in c.covers_prefixes}
+    return tuple(suggest_covers_prefixes(added, existing))
 
 
 def _load_inputs(

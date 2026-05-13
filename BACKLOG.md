@@ -6,22 +6,19 @@ their trigger so the codebase stays free of speculative complexity.
 
 ## Open
 
-### Auto-suggest scope hints in the report
+### Auto-suggest `--product-prefix`
 
-**Trigger:** met. The `--product-prefix` flag (PR #20) and `covers-prefix`
-annotations (PR #23) are powerful but the curator has to *discover* them
-by reading a noisy first-run report and figuring out the right strings.
-The matcher already has the data to propose both: a tight cluster of
-*added* packages sharing a prefix that matches nothing on the manual
-side is exactly the signal.
-
-Add a "Suggested annotations" appendix to the report when such a cluster
-exists, e.g. "5 scan packages share the prefix `Vortice.` but no manual
-entry covers it — add `PackageComment: <text>sbom-curator covers-prefix:
-Vortice.</text>` to the entry that owns them." The largest cluster whose
-prefix overlaps the manual's `DESCRIBES` target name doubles as a
-`--product-prefix` suggestion. Pure additive; no auto-apply (a wrong
-auto-applied prefix is nuclear).
+**Partly shipped (PR #25): `covers-prefix` suggestions.** Tight name
+clusters in *added* that no manual entry covers now surface as
+`Suggested annotations` in the report and a console line. **Still open:**
+the same machinery could spot a candidate `--product-prefix` — likely
+the largest *added* cluster on a first run (no Hermes-filter applied),
+or the cluster whose prefix overlaps the manual's `DESCRIBES` target.
+Punted from PR #25 because every heuristic is liable to false positives
+on a wrong auto-apply; "suggest in the report, never auto-apply" is the
+right shape, and product-prefix suggestion has more risk of misleading a
+curator into typing the wrong thing than covers-prefix does. Revisit
+when a new product onboards and the discovery friction shows up.
 
 ### Folder-scan mode
 
@@ -158,3 +155,4 @@ covers them.
 | PR #22 | PURL-aware matching — match manual↔scan on equal version-free PURLs before falling back to lowercased name |
 | PR #23 | Family-prefix coverage — `PackageComment: sbom-curator covers-prefix: <X>` on a manual entry absorbs unmatched scan packages whose name starts with `<X>` into a dedicated `covered` bucket |
 | PR #24 | `lint` subcommand — translate spdx-tools' opaque grammar errors into line-numbered actionable messages (`PackageVersion: NOASSERTION`, SPDX 2.3 §7.3); warn on packages `ingest`/`reconcile` would silently skip |
+| PR #25 | Auto-suggest `covers-prefix` — tight name clusters in *added* that no manual entry covers surface in a `## Suggested annotations` section with the exact annotation text |
