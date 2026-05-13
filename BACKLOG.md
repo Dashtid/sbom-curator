@@ -55,16 +55,6 @@ project config file (`sbom-curator.toml` or `--config path`). Not before
 — a flag or two on the command line is fine; a config layer with no
 settled set of settings to hold is speculative.
 
-### Teach `versions_equal` the NuGet semver ↔ .NET assembly-version pattern
-
-**Trigger:** met. After PR #22's PURL match, the Affinity manual's
-`Reactive 4.4.1` pairs with the scan's `System.Reactive 4.4.1.57983` —
-same NuGet release, different version-string conventions. The matcher
-reads it as a bump. `dedupe_scan`'s `_canonical_variant` (PR #21) already
-recognises the pattern (3-component release vs 4-component sharing
-`major.minor`). Lift that into `versions_equal` (or a sibling) so a PURL
-match across that pair reads as agreement. Small, isolated.
-
 ### Configurable exit-code thresholds
 
 **Trigger:** someone wants to gate CI on reconciliation findings.
@@ -156,3 +146,4 @@ covers them.
 | PR #23 | Family-prefix coverage — `PackageComment: sbom-curator covers-prefix: <X>` on a manual entry absorbs unmatched scan packages whose name starts with `<X>` into a dedicated `covered` bucket |
 | PR #24 | `lint` subcommand — translate spdx-tools' opaque grammar errors into line-numbered actionable messages (`PackageVersion: NOASSERTION`, SPDX 2.3 §7.3); warn on packages `ingest`/`reconcile` would silently skip |
 | PR #25 | Auto-suggest `covers-prefix` — tight name clusters in *added* that no manual entry covers surface in a `## Suggested annotations` section with the exact annotation text |
+| PR #26 | `versions_equal` accepts the NuGet semver ↔ .NET assembly-version pattern (`4.4.1` ↔ `4.4.1.57983`, length pair (3, 4), first three components equal) — kills the spurious `Reactive` bump |

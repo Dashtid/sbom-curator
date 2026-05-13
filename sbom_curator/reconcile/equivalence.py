@@ -23,6 +23,12 @@ def versions_equal(a: str, b: str) -> bool:
     distinguishing. This is correct for SBOM use — a build with extra
     metadata is technically a different artifact.
 
+    Also accepts the **NuGet semver ↔ .NET assembly-version** pattern: a
+    3-component release ``X.Y.Z`` paired with the 4-component assembly
+    version ``X.Y.Z.<revision>`` (e.g. NuGet ``4.4.1`` and the assembly
+    ``4.4.1.57983`` of the same release). Restricted to the (3, 4)
+    length pair so unrelated patches don't quietly match.
+
     Versions that fail to parse fall back to strict string equality. So
     ``"weird-tag" == "weird-tag"`` still holds, but ``"weird-tag-a"``
     does not equal ``"weird-tag-b"``.
@@ -30,9 +36,22 @@ def versions_equal(a: str, b: str) -> bool:
     if a == b:
         return True
     try:
-        return Version(a) == Version(b)
+        va, vb = Version(a), Version(b)
     except InvalidVersion:
         return False
+    if va == vb:
+        return True
+    return _dotnet_assembly_revision_match(va.release, vb.release)
+
+
+def _dotnet_assembly_revision_match(
+    a: tuple[int, ...], b: tuple[int, ...]
+) -> bool:
+    """NuGet ``X.Y.Z`` ↔ .NET assembly ``X.Y.Z.<revision>`` — same release."""
+    short, long_ = (a, b) if len(a) < len(b) else (b, a)
+    if (len(short), len(long_)) != (3, 4):
+        return False
+    return long_[:3] == short
 
 
 def licenses_equal(a: str | None, b: str | None) -> bool:
