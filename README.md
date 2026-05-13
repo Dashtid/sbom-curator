@@ -77,6 +77,9 @@ sbom-curator reconcile \
     --manual product.spdx \
     --syft   product.syft.spdx.json \
     --name   product-1.0.0
+
+# Preflight an SPDX file: catch spec violations and silent-skip cases
+sbom-curator lint product.spdx
 ```
 
 `--manual` accepts any SPDX 2.x serialization spdx-tools understands

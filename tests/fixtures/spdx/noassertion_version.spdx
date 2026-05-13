@@ -1,0 +1,21 @@
+SPDXVersion: SPDX-2.3
+DataLicense: CC0-1.0
+SPDXID: SPDXRef-DOCUMENT
+DocumentName: noassertion-test
+DocumentNamespace: https://example.invalid/noassertion-test
+Creator: Tool: hand-curated
+Created: 2026-05-12T00:00:00Z
+
+PackageName: ok-package
+SPDXID: SPDXRef-Package-OK
+PackageVersion: 1.0.0
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT
+
+PackageName: forbidden-version
+SPDXID: SPDXRef-Package-Forbidden
+PackageVersion: NOASSERTION
+PackageDownloadLocation: NOASSERTION
+PackageLicenseConcluded: MIT
+PackageLicenseDeclared: MIT

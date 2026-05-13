@@ -92,11 +92,18 @@ scan input is for. On the first release, seed the manual from a scan plus
 your knowledge of what the scanner missed. On subsequent releases, the
 change report tells you what moved; you merge the real changes by hand.
 
-**Watch out for `PackageVersion: NOASSERTION`** — that value is
-spec-forbidden by SPDX 2.3 §7.3 and spdx-tools (so this parser) rejects
-the file. The field is optional; omit the line entirely when a version is
-unknown. (Real customer SBOMs hit this; a future `lint` subcommand will
-flag it — see [`BACKLOG.md`](../BACKLOG.md).)
+**Preflight your manual SBOM** before running the full pipeline:
+
+```bash
+sbom-curator lint artifacts/manual/<name>.spdx
+```
+
+This translates spdx-tools' opaque grammar errors into line-numbered
+actionable messages (notably `PackageVersion: NOASSERTION`, which is
+spec-forbidden by SPDX 2.3 §7.3 and blocks parsing — the field is
+optional, omit the line entirely when a version is unknown) and warns
+on packages `ingest`/`reconcile` would silently skip (`UNKNOWN`
+versions, backslash-path names). Exit 0 if clean, 2 on any error.
 
 ### 2. Generate the scan SBOM
 

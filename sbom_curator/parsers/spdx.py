@@ -57,7 +57,7 @@ def load(path: Path, source: Source = "manual") -> list[Component]:
     cannot interpret the underlying graph-based format.
     """
     try:
-        doc = _parse(path)
+        doc = parse_document(path)
     except Exception as exc:
         raise SpdxParseError(f"{path}: {exc}") from exc
 
@@ -95,14 +95,16 @@ def load(path: Path, source: Source = "manual") -> list[Component]:
     return components
 
 
-def _parse(path: Path) -> SpdxDocument:
-    """Dispatch to spdx-tools, with a content-sniff fallback for tag-value.
+def parse_document(path: Path) -> SpdxDocument:
+    """Parse an SPDX file into an ``SpdxDocument``.
 
-    spdx-tools' ``parse_anything`` keys off the file extension and rejects
-    unknown ones (including ``.txt``) with "Unsupported SPDX file type"
-    even when the content is a valid tag-value document. We catch that
-    specific case and route to the tag-value parser when the content
-    starts with ``SPDXVersion`` — the unambiguous tag-value signature.
+    Dispatches to spdx-tools, with a content-sniff fallback for tag-value:
+    ``parse_anything`` keys off the file extension and rejects unknown
+    ones (including ``.txt``) with "Unsupported SPDX file type" even when
+    the content is a valid tag-value document. We catch that specific
+    case and route to the tag-value parser when the content starts with
+    ``SPDXVersion`` — the unambiguous tag-value signature. Raises
+    spdx-tools' :class:`SPDXParsingError` on parse failure.
     """
     try:
         return parse_file(str(path))

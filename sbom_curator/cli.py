@@ -6,6 +6,7 @@ from rich.console import Console
 from sbom_curator import __version__
 from sbom_curator.curate.ingest import plan as build_plan
 from sbom_curator.curate.scope import dedupe_scan, drop_by_name_prefix
+from sbom_curator.lint import lint as lint_document
 from sbom_curator.parsers.model import Component
 from sbom_curator.parsers.spdx import SpdxParseError, load
 from sbom_curator.reconcile.diff import reconcile as reconcile_components
@@ -104,6 +105,31 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
         console.print(
             f"[green][+][/green] covered by family entries: {len(result.covered)}"
         )
+
+
+@cli.command(name="lint")
+@click.argument("path", type=click.Path(exists=True, path_type=Path))
+def lint_cmd(path: Path) -> None:
+    """Preflight an SPDX SBOM: catch the parse errors and silent skips
+    that would otherwise bite ``ingest``/``reconcile``.
+
+    Exit 0 if clean (warnings are OK); exit 2 if any error is found.
+    """
+    result = lint_document(path)
+    for issue in result.issues:
+        marker = "[red][-][/red]" if issue.severity == "error" else "[yellow][!][/yellow]"
+        location = f"line {issue.line}: " if issue.line is not None else ""
+        console.print(f"{marker} {location}{issue.message}")
+    errors = result.errors
+    warnings = result.warnings
+    if not result.issues:
+        console.print(f"[green][+][/green] {path}: no issues")
+        return
+    console.print(
+        f"[blue]\\[i][/blue] {len(errors)} error(s), {len(warnings)} warning(s)"
+    )
+    if errors:
+        raise click.exceptions.Exit(code=2)
 
 
 def _load_inputs(

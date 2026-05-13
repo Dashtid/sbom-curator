@@ -6,97 +6,22 @@ their trigger so the codebase stays free of speculative complexity.
 
 ## Open
 
-### `ingest --apply` — write the edit plan back to the manual SBOM
+### Auto-suggest scope hints in the report
 
-**Trigger:** the curator has run `ingest` against a few real customer
-SBOMs by hand and the same mechanical edits (version bumps, appending
-new package blocks) are clearly worth automating.
+**Trigger:** met. The `--product-prefix` flag (PR #20) and `covers-prefix`
+annotations (PR #23) are powerful but the curator has to *discover* them
+by reading a noisy first-run report and figuring out the right strings.
+The matcher already has the data to propose both: a tight cluster of
+*added* packages sharing a prefix that matches nothing on the manual
+side is exactly the signal.
 
-`ingest` produces a plan; today the curator applies it by hand. An
-`--apply` flag would let the tool perform the safe subset of edits:
-appending `AddAction` package blocks, updating `PackageVersion` lines
-for `BumpAction`s. It must preserve the file's existing formatting,
-comments, package groupings, and curated relationships — which rules
-out "parse with spdx-tools, re-serialize" (that loses all of it).
-Likely a surgical text-edit pass, or it stays manual. Kept opt-in
-regardless; the default is to leave the curator's file untouched.
-
-### .NET name-style normalization (top priority — trigger met)
-
-**Trigger:** met. A real Affinity 5.0.0 manual SBOM run against the
-matching Syft scan (2026-05-12) showed the name-mismatch problem is
-pervasive in .NET and dominates the report. Examples from that run:
-
-| Manual lists | Scan sees | Mismatch type |
-| --- | --- | --- |
-| `Reactive` 4.4.1 | `System.Reactive` 4.4.1 (+ `.Core`, `.Interfaces`, `.Linq`) | Vendor-prefix dropped in the manual; *version actually matches* |
-| `Vortice` 3.2.0 | `Vortice.Direct3D11`, `.DXGI`, `.DirectX`, `.Direct3D9` 3.2.0 | Manual lists the family; scan lists the individual NuGet packages |
-| `CommunityToolkit` 8.2.2 | `CommunityToolkit.Mvvm` 8.2.2 | Same family-vs-package pattern; version matches |
-| `Infragistics Ultimate` 2022.2 | `Infragistics.WPF.*` 22.2.19 (×12) | Family-vs-package *and* marketing-version vs NuGet-version (`2022.2` ≈ `22.2.x`) |
-| `DCMTK` 3.6.7 | `dcm2json`, `dcmconv`, `dcmcjpeg`, … (~40 tool binaries) | Coarse component vs the individual executables a directory scan finds |
-| `CUDA Runtime Library` 11.0.194 | `NVIDIA CUDA 11.0.194 Runtime` | Different name string entirely; the version is embedded in the name |
-
-Without normalization, every one of these lands in *added* (the scan's
-fine-grained names) and *only in your SBOM* (the curator's coarse name)
-— two large noisy buckets that bury the handful of genuinely-missing
-packages. Distinct sub-problems:
-
-1. **Family ↔ package** — does manual `CommunityToolkit` mean the whole
-   family or specifically `CommunityToolkit.Mvvm`? The tool can't infer
-   curator intent; likely needs a curator-side hint (a glob in the
-   manual entry's name, or an SPDX annotation) or a "this manual entry
-   covers all `X.*`" convention.
-2. **Vendor-prefix** — `Reactive` ↔ `System.Reactive` is a clean prefix
-   strip. `CommunityToolkit` ↔ `CommunityToolkit.Mvvm` is a sibling
-   suffix add. Different rules.
-3. **Coarse ↔ binaries** — `DCMTK` ↔ 40 `dcm*` executables. Tied to the
-   "scan the install, not the build tree" guidance — a clean scan
-   reduces but doesn't eliminate this for native libs.
-
-The Affinity 5.0.0 pair is the design input; it isn't committable as a
-fixture (customer-confidential), so the work needs an anonymized or
-synthetic .NET pair to test against, or it's designed against the live
-Affinity files and tested with a small synthetic .NET fixture.
-
-Family-prefix coverage shipped in PR #23 (see Done). Remaining residuals
-on this front:
-
-### Coverage residuals
-
-**(a)** Glob support beyond literal name prefix — `Vortice.*` (already
-works as a prefix) plus more complex globs (`Vortice.*WPF.*`,
-`Infragistics.[A-Z]*`). Trigger: a real curator entry whose desired
-coverage can't be expressed as a single prefix.
-**(b)** Auto-detect candidate prefixes — propose a `covers-prefix` line
-when ingest sees a cluster of >N scan packages sharing a prefix that
-match nothing on the manual side. Output as a suggestion in the report,
-not applied automatically. Trigger: curators forgetting to declare
-coverage on entries they know are coarse.
-**(c)** Version sanity — currently coverage is informational (no
-version comparison between umbrella and absorbed sub-packages) because
-schemes diverge between the umbrella (e.g. marketing `2022.2`) and the
-sub-packages (`22.2.19`). Could surface a warning when the *spread* of
-sub-package versions is unusually wide (suggests two distinct family
-versions installed side-by-side). Trigger: a real run where this misses
-something the curator wishes had been flagged.
-
-### `lint` subcommand — preflight the manual SBOM (trigger met)
-
-**Trigger:** met. The real Affinity 5.0.0 manual SBOM (2026-05-12)
-would not parse — line 196 (`PackageVersion: NOASSERTION` on the
-`haeslib` package) is spec-forbidden by SPDX 2.3 §7.3 (the field is
-optional; absence means "unknown"). spdx-tools rejects it correctly
-but the error message — `Token did not match specified grammar rule.
-Line: 196` — is opaque, and the curator had to hand-edit the file
-before the tool would run.
-
-A small `sbom-curator lint manual.spdx` subcommand would catch known
-spec violations before `ingest`/`reconcile`, with actionable messages
-("line 196: delete `PackageVersion: NOASSERTION` — that value isn't
-permitted by SPDX 2.3 §7.3; omit the field when the version is
-unknown"). Keeps the linting story in its own command rather than
-making the parser permissive. Worth doing soon — it's the first thing
-that bit a real run.
+Add a "Suggested annotations" appendix to the report when such a cluster
+exists, e.g. "5 scan packages share the prefix `Vortice.` but no manual
+entry covers it — add `PackageComment: <text>sbom-curator covers-prefix:
+Vortice.</text>` to the entry that owns them." The largest cluster whose
+prefix overlaps the manual's `DESCRIBES` target name doubles as a
+`--product-prefix` suggestion. Pure additive; no auto-apply (a wrong
+auto-applied prefix is nuclear).
 
 ### Folder-scan mode
 
@@ -133,35 +58,15 @@ project config file (`sbom-curator.toml` or `--config path`). Not before
 — a flag or two on the command line is fine; a config layer with no
 settled set of settings to hold is speculative.
 
-### Scan-side deduplication — residuals
+### Teach `versions_equal` the NuGet semver ↔ .NET assembly-version pattern
 
-**Mostly shipped (PR #21).** `curate/scope.dedupe_scan` now collapses,
-on the scan side before matching: exact duplicates (same lowercased name
-+ version), PEP-440-equal versions, `+local`-segment variants, and a
-NuGet semver paired with its .NET assembly version (`9.0.0` ↔
-`9.0.24.52809`). Genuine multi-version installs are kept. **Residuals:**
-(a) a name-group with *three or more* distinct versions where only some
-are precision-variants — currently kept whole (the heuristic only fires
-for exactly-two-version groups); (b) dedup keys on name, not PURL — it
-could additionally collapse scan entries that share a normalized PURL
-(`_normalize_purl`, now used by the matcher) even when their name strings
-differ; (c) collapses are counted in the run output and `-v` logs each
-one, but the report doesn't list them — add a `## Collapsed scan
-duplicates` appendix if an audit ever needs the full record; (d) the
-cross-side `versions_equal` check doesn't know the NuGet-semver ↔ .NET
-assembly-version pattern, so a PURL match between manual `4.4.1` and scan
-`4.4.1.57983` reads as a bump — teach `versions_equal` (or a sibling) the
-same heuristic `_canonical_variant` uses so it reads as agreement.
-
-### Snapshot tests for the Markdown report
-
-**Trigger:** a layout change accidentally breaks the "stable diff
-run-to-run" promise — or earlier, if pinning shape becomes desirable.
-
-`tests/test_report.py` exercises individual rendering primitives. Add a
-snapshot test that pins the full rendered report against the dogfood
-fixture, so layout regressions (column reordering, section omission,
-heading rename) fail CI rather than slipping through.
+**Trigger:** met. After PR #22's PURL match, the Affinity manual's
+`Reactive 4.4.1` pairs with the scan's `System.Reactive 4.4.1.57983` —
+same NuGet release, different version-string conventions. The matcher
+reads it as a bump. `dedupe_scan`'s `_canonical_variant` (PR #21) already
+recognises the pattern (3-component release vs 4-component sharing
+`major.minor`). Lift that into `versions_equal` (or a sibling) so a PURL
+match across that pair reads as agreement. Small, isolated.
 
 ### Configurable exit-code thresholds
 
@@ -190,6 +95,42 @@ PyPI when the tool's audience extends past the local toolchain.
   whose only job is to undo a flag the user controls. Revisit only if a
   workflow genuinely *cannot* produce or convert to SPDX.
 
+- **`ingest --apply`** (write the edit plan back to the manual SBOM).
+  The cost is high — must preserve the curator's formatting, comments,
+  package groupings, and curated relationships, which rules out
+  parse-and-re-serialise — and the value is low: reading the report and
+  applying changes by hand is the part the curator wants control over.
+
+- **Coverage glob support beyond literal prefix.** A glob like
+  `Vortice.*WPF.*` would be an obvious extension to `covers-prefix:` but
+  no real case has shown up. Revisit if a curator entry's intended
+  coverage genuinely can't be expressed as a single name prefix.
+
+- **Coverage version-spread sanity check.** A warning when an umbrella's
+  covered sub-packages span an unusually wide version range could flag
+  side-by-side installs of two family versions. Schemes diverge between
+  umbrellas (e.g. marketing `2022.2`) and sub-packages (`22.2.19`), so a
+  naive check is noisy. Revisit when a real run misses something the
+  curator wishes had been flagged.
+
+- **Dedup residuals from PR #21:** (a) collapse name-groups with three
+  or more distinct versions where only some are precision-variants —
+  currently kept whole; (b) key dedup on PURL as well as name; (c) a
+  `## Collapsed scan duplicates` audit appendix in the report. Each is
+  marginal noise reduction at this point; revisit if a real run shows
+  the noise.
+
+- **Snapshot tests for the Markdown report.** `tests/test_report.py`
+  pins each rendering primitive; a full-report snapshot would catch
+  cross-section layout regressions but at the cost of pinning every
+  small rendering tweak. Add only if a layout regression actually slips
+  through CI.
+
+- **Project config file (`sbom-curator.toml`).** The trigger ("curator
+  passes the same handful of `--product-prefix`/`--fail-on`/etc. flags
+  on every run") isn't met — Affinity needs one prefix flag. Revisit
+  when a second product onboards and the flag-set stabilises.
+
 ## Done
 
 Recorded for context; remove entries once the project context fully
@@ -216,3 +157,4 @@ covers them.
 | PR #21 | Scan-side hygiene — drop `UNKNOWN`-version / path-named entries (parser); `dedupe_scan` collapses exact dups + precision-variant pairs |
 | PR #22 | PURL-aware matching — match manual↔scan on equal version-free PURLs before falling back to lowercased name |
 | PR #23 | Family-prefix coverage — `PackageComment: sbom-curator covers-prefix: <X>` on a manual entry absorbs unmatched scan packages whose name starts with `<X>` into a dedicated `covered` bucket |
+| PR #24 | `lint` subcommand — translate spdx-tools' opaque grammar errors into line-numbered actionable messages (`PackageVersion: NOASSERTION`, SPDX 2.3 §7.3); warn on packages `ingest`/`reconcile` would silently skip |
