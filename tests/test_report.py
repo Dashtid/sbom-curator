@@ -6,6 +6,7 @@ from sbom_curator.curate.ingest import (
     KeepAction,
     ReviewAction,
 )
+from sbom_curator.curate.suggest import CoversPrefixSuggestion
 from sbom_curator.parsers.model import Component
 from sbom_curator.reconcile.diff import Reconciliation
 from sbom_curator.report.markdown import render, render_ingest_plan
@@ -50,7 +51,8 @@ def test_render_renders_empty_buckets_as_none_placeholders() -> None:
     assert "## Version disagreements" in out
     assert "## License disagreements" in out
     assert "## Covered by a family entry" in out
-    assert out.count("(none)") == 5
+    assert "## Suggested annotations" in out
+    assert out.count("(none)") == 6
 
 
 def test_render_only_in_manual_table() -> None:
@@ -141,7 +143,8 @@ def test_render_change_report_empty_sections_render_as_none() -> None:
     assert "## Only in your SBOM" in out
     assert "## License changed (otherwise unchanged)" in out
     assert "## Covered by a family entry" in out
-    assert out.count("(none)") == 5
+    assert "## Suggested annotations" in out
+    assert out.count("(none)") == 6
 
 
 def test_render_change_report_added_table() -> None:
@@ -278,3 +281,47 @@ def test_render_reconcile_report_covered_section() -> None:
     assert "- Covered by family entries: 1" in out
     assert "## Covered by a family entry" in out
     assert "| Vortice.DXGI | 3.2.0 | Vortice |" in out
+
+
+# ----- Suggested annotations -----
+
+
+def test_render_change_report_suggestions_section() -> None:
+    suggestions = (
+        CoversPrefixSuggestion(
+            prefix="Vortice.",
+            packages=("Vortice.Direct3D11", "Vortice.DXGI", "Vortice.DirectX"),
+        ),
+    )
+    out = render_ingest_plan(EditPlan(added=[], bumped=[], reviews=[], keeps=[]),
+                             name="x", suggestions=suggestions)
+
+    assert "- Suggested annotations: 1" in out
+    assert "## Suggested annotations" in out
+    assert "**`Vortice.`**" in out
+    assert "covers-prefix: Vortice." in out
+    assert "`Vortice.Direct3D11`" in out
+
+
+def test_render_reconcile_report_suggestions_section() -> None:
+    suggestions = (
+        CoversPrefixSuggestion(prefix="X.", packages=("X.a", "X.b", "X.c")),
+    )
+    rec = Reconciliation(only_in_manual=[], only_in_syft=[], in_both=[])
+    out = render(rec, name="x", suggestions=suggestions)
+
+    assert "- Suggested annotations: 1" in out
+    assert "## Suggested annotations" in out
+    assert "**`X.`**" in out
+
+
+def test_render_suggestions_truncates_long_package_lists() -> None:
+    long_list = tuple(f"X.pkg{i}" for i in range(20))
+    suggestions = (CoversPrefixSuggestion(prefix="X.", packages=long_list),)
+    out = render_ingest_plan(EditPlan(added=[], bumped=[], reviews=[], keeps=[]),
+                             name="x", suggestions=suggestions)
+
+    # First five packages listed; remainder summarised.
+    assert "`X.pkg0`" in out
+    assert "`X.pkg4`" in out
+    assert "and 15 more" in out

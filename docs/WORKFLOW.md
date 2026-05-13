@@ -183,6 +183,11 @@ sections:
   version so versions are still auditable, but the section is informational
   (no automatic version checks against the umbrella entry — version schemes
   often differ between the umbrella and its sub-packages).
+- **Suggested annotations.** When *added* contains a tight name cluster
+  (≥3 scan packages sharing a dotted prefix) that no manual entry
+  covers, the report proposes the exact `covers-prefix:` annotation that
+  would absorb them. The curator decides whether one of their entries
+  should own that family; nothing is auto-applied.
 - **License changed (otherwise unchanged).** Entries that match on name
   and version but whose license string differs from the scan. Reconcile
   against upstream and fix the side that's wrong. (Only listed when *both*
