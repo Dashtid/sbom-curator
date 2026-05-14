@@ -92,18 +92,15 @@ scan input is for. On the first release, seed the manual from a scan plus
 your knowledge of what the scanner missed. On subsequent releases, the
 change report tells you what moved; you merge the real changes by hand.
 
-**Preflight your manual SBOM** before running the full pipeline:
-
-```bash
-sbom-curator lint artifacts/manual/<name>.spdx
-```
-
-This translates spdx-tools' opaque grammar errors into line-numbered
-actionable messages (notably `PackageVersion: NOASSERTION`, which is
-spec-forbidden by SPDX 2.3 §7.3 and blocks parsing — the field is
-optional, omit the line entirely when a version is unknown) and warns
-on packages `ingest`/`reconcile` would silently skip (`UNKNOWN`
-versions, backslash-path names). Exit 0 if clean, 2 on any error.
+**If `ingest` ever fails to parse your SBOM**, run `sbom-curator lint
+artifacts/manual/<name>.spdx`. It translates the one spdx-tools error
+the curator is likely to hit (`PackageVersion: NOASSERTION`, spec-
+forbidden by SPDX 2.3 §7.3) into a line-numbered actionable message,
+and flags the cases where `ingest` will silently skip a package
+(`UNKNOWN` versions, backslash-path names). It does not flag a missing
+`PackageVersion` line, because that is an explicit curator choice per
+spec ("absence means unknown") and the entry stays in your SBOM
+regardless — only the cross-scan comparison skips it.
 
 ### 2. Generate the scan SBOM
 
@@ -138,81 +135,76 @@ sbom-curator ingest \
     --output-dir artifacts/reports
 ```
 
-A directory scan of a multi-assembly app (notably .NET) gets two kinds of
-cleanup on the `--syft` side before the diff:
+The report lands at `artifacts/reports/<name>-ingest.md`. Read the four
+actionable sections and edit your manual SBOM by hand:
 
-- **Automatic.** Loose binaries inside vendored source trees (a name that's
-  a filesystem path, version `UNKNOWN`) are dropped — they're not packages.
-  A package the scan lists more than once is collapsed to one entry: exact
-  duplicates (Syft emits a row per referencing project), and "same package
-  at different precision" pairs — a NuGet semver `9.0.0` alongside its .NET
-  assembly version `9.0.24.52809`, or a version with a `+build` local
-  segment alongside the same version without. A genuine multi-version
-  install (`foo 1.x` *and* `foo 2.x`) is kept. The run prints how many it
-  dropped; `-v` logs each collapse.
-- **`--product-prefix`.** Drops the product's own DLLs by name prefix —
-  e.g. `--product-prefix Hermes.` for an app whose assemblies are all
-  `Hermes.*`. Repeatable, case-insensitive; also useful for framework
-  noise you deliberately don't enumerate (`--product-prefix System.
-  --product-prefix Microsoft.Extensions.`). (The DESCRIBES-based filter
-  already removes the product when the scan names it explicitly; this is
-  the fallback for directory scans, where the DESCRIBES target is a
-  synthetic directory node that shares no name with the assemblies.)
+- **Added.** In the scan, not in your SBOM. Most of these are dev/test
+  tooling or framework packages that ship with the runtime — leave them
+  out. Anything you genuinely want to track gets a new entry in the
+  manual.
+- **Bumped.** In both, at different versions. Update the manual's
+  `PackageVersion` line if the scan's version is what shipped.
+- **Only in your SBOM.** The scan didn't find a match. Usually fine —
+  these are the vendored / statically-linked / system-installed
+  components Syft can't see (the whole reason a manual SBOM exists).
+- **License changed (otherwise unchanged).** Same name and version, the
+  license string disagrees. Reconcile against upstream and fix the side
+  that's wrong.
 
-The report lands at `artifacts/reports/<name>-ingest.md` with four
-sections:
+Unchanged entries are counted in the summary but not listed, so the
+actionable sections stand out. Two informational sections may also
+appear: **Covered by a family entry** (scan packages absorbed by a
+`covers-prefix:` annotation — see "Optional knobs" below) and
+**Suggested annotations** (tight name clusters in *added* that you
+could declare coverage for).
 
-- **Added.** In the scan, not in your SBOM. Candidates to add. Some will
-  be dev/test/build tooling that doesn't ship — leave it out, or note in
-  the SBOM why it's excluded so the next ingest doesn't re-surface the
-  question. The rest belong in the SBOM.
-- **Bumped.** In both, at different versions. Usually the scan side is the
-  truth (it scanned the shipped build); update your entry. The row flags
-  whether the license also changed.
-- **Only in your SBOM.** The scan matched nothing — neither by PURL, by name,
-  nor by family coverage. Three possibilities: (a) the scanner can't see it
-  (vendored / statically linked — fine, leave it), (b) the scan lists it
-  under a different name — add the canonical PURL to your entry to bridge a
-  rename, or for a coarse entry covering many fine-grained scan packages,
-  declare it: `PackageComment: <text>sbom-curator covers-prefix:
-  Vortice.</text>` makes a `Vortice` entry absorb every `Vortice.*` in the
-  scan, or (c) it's genuinely gone (then remove it).
-- **Covered by a family entry.** Scan packages absorbed by one of your
-  entries' `covers-prefix` declarations — not in *added* because you've
-  already declared coverage. Each absorbed package is listed with its
-  version so versions are still auditable, but the section is informational
-  (no automatic version checks against the umbrella entry — version schemes
-  often differ between the umbrella and its sub-packages).
-- **Suggested annotations.** When *added* contains a tight name cluster
-  (≥3 scan packages sharing a dotted prefix) that no manual entry
-  covers, the report proposes the exact `covers-prefix:` annotation that
-  would absorb them. The curator decides whether one of their entries
-  should own that family; nothing is auto-applied.
+`ingest` does not rewrite your SBOM. Editing by hand keeps your
+formatting, comments, package groupings, and curated relationships —
+which is what the regulator sees and audits.
+
+#### Optional knobs (skip until the basic report is too noisy)
+
+A first run on a real product can produce a long *added* section, much
+of it noise (the product's own DLLs decomposed into assemblies, .NET
+framework packages, …). Three optional levers, in order of typical
+payoff:
+
+- **`--product-prefix PREFIX`** drops scan packages whose name starts
+  with PREFIX. Use it for the product's own assemblies (an app whose
+  DLLs are all `Hermes.*` → `--product-prefix Hermes`) or for framework
+  noise you don't enumerate (`--product-prefix System.
+  --product-prefix Microsoft.Extensions.`). Repeatable.
+- **A canonical PURL on a manual entry** bridges a rename. If you list
+  `Reactive` but the scan calls it `System.Reactive`, add
+  `ExternalRef: PACKAGE-MANAGER purl pkg:nuget/System.Reactive@4.4.1`
+  to your `Reactive` entry. The matcher pairs them on PURL.
+- **`PackageComment: <text>sbom-curator covers-prefix: PREFIX</text>`**
+  on a manual entry absorbs every scan package whose name starts with
+  PREFIX into that entry. Useful when you list a family coarsely
+  (`Vortice 3.2.0`) and the scan lists every sub-package
+  (`Vortice.DXGI`, `Vortice.Direct3D11`, …). The umbrella entry is not
+  consumed; one entry can cover many sub-packages.
+
+The report's **Suggested annotations** section proposes `covers-prefix:`
+lines when it spots clusters worth declaring; copy/paste if it makes
+sense, ignore otherwise.
 
 To gate CI on findings, pass `--fail-on=BUCKETS`:
 
 ```bash
-# Fail the build if the scan adds anything or bumps a version.
 sbom-curator ingest ... --fail-on added,bumped
 ```
 
 Valid buckets for `ingest`: `added`, `bumped`, `review`, `license`. For
 `reconcile`: `only-in-syft`, `only-in-manual`, `version`, `license`.
-Default exit codes: 0 success, 1 gate hit, 2 parse failure.
-- **License changed (otherwise unchanged).** Entries that match on name
-  and version but whose license string differs from the scan. Reconcile
-  against upstream and fix the side that's wrong. (Only listed when *both*
-  sides carry a license and they differ — "you say MIT, the scan says
-  nothing" isn't a finding.)
+Exit codes: 0 success, 1 gate hit, 2 parse failure.
 
-Unchanged-and-unchanged entries are counted in the summary but not listed,
-so the actionable sections stand out.
-
-Read the report, apply the changes you accept, edit
-`artifacts/manual/<name>.spdx` directly. `ingest` does not rewrite the
-SBOM — that's deliberate; an `ingest --apply` mode may land later but the
-curator's pen stays in their hand by default. Editing by hand keeps your
-formatting, comments, package groupings, and curated relationships.
+Automatic cleanup happens every run regardless: scan rows with no
+usable version (literal `UNKNOWN`, missing) and rows whose name is a
+filesystem path are dropped (they're loose binaries, not packages),
+and duplicate scan entries (Syft emitting one row per referencing
+project, or a NuGet semver alongside its .NET assembly version) are
+collapsed to one.
 
 ### 4. (optional) Reconcile — the raw diff
 

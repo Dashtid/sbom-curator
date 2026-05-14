@@ -4,10 +4,23 @@ The parser used by ``ingest``/``reconcile`` fails loudly on spec violations
 (via spdx-tools) but the message is opaque — a real Affinity 5.0.0 run
 greeted the curator with ``Token did not match specified grammar rule.
 Line: 196`` for what was a ``PackageVersion: NOASSERTION`` line that SPDX
-2.3 §7.3 forbids. ``lint`` re-runs the same parser and translates the few
-known failure modes into actionable, line-numbered messages, plus
-reports the cases the parser silently skips (``UNKNOWN``-version
-packages, backslash-path names) so the curator knows what got dropped.
+2.3 §7.3 forbids. ``lint`` re-runs the same parser and translates the
+known failure modes into actionable, line-numbered messages, plus a
+short list of *curator-actionable* surface issues.
+
+What lint flags:
+
+* **Errors** — spec violations the parser can't get past (``PackageVersion:
+  NOASSERTION``, malformed input).
+* **Warnings** — ``PackageVersion`` set to the literal string ``UNKNOWN``
+  (scanner output, not curator intent), and package names containing a
+  backslash (loose binaries scanned from a build tree, not packages).
+
+What lint does **not** flag: a package with no ``PackageVersion`` line at
+all. That's an explicit curator choice per SPDX 2.3 §7.3 ("absence means
+unknown") and is the right way to record a component whose version isn't
+known. ``ingest``/``reconcile`` silently skip such entries from the
+comparison; the SBOM still records them for the regulator.
 
 Errors and warnings are separate: errors block ``ingest``/``reconcile``,
 warnings don't. Exit-code policy is the caller's (``cli.lint`` returns 2
@@ -63,16 +76,16 @@ def lint(path: Path) -> LintResult:
         name = pkg.name
         version_obj = pkg.version
         version = "" if version_obj is None else str(version_obj).strip()
-        if not version:
+        # A missing PackageVersion is an explicit curator choice per
+        # SPDX 2.3 §7.3 ("absent means unknown") — not a finding.
+        # ingest/reconcile silently skip the package; the SBOM still
+        # records it for the regulator, which is the point.
+        if version and version.upper() in {"UNKNOWN", "NOASSERTION"}:
             issues.append(LintIssue(
                 "warning",
-                f"package {name!r}: missing PackageVersion — will be skipped by ingest/reconcile",
-            ))
-        elif version.upper() in {"UNKNOWN", "NOASSERTION"}:
-            issues.append(LintIssue(
-                "warning",
-                f"package {name!r}: PackageVersion is {version!r} — will be skipped by "
-                "ingest/reconcile (use a real version, or omit the field to mean unknown)",
+                f"package {name!r}: PackageVersion is {version!r} — write a real "
+                "version, or omit the field entirely (SPDX 2.3 §7.3 says absence "
+                "means unknown). ingest/reconcile will skip this entry.",
             ))
         if "\\" in name:
             issues.append(LintIssue(
