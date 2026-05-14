@@ -31,10 +31,14 @@ def test_unknown_version_is_a_warning() -> None:
     assert any("unknown-version-pkg" in m and "UNKNOWN" in m for m in messages)
 
 
-def test_missing_version_is_a_warning() -> None:
+def test_missing_version_is_not_a_finding() -> None:
+    # A package with no PackageVersion is an explicit curator choice per
+    # SPDX 2.3 §7.3 ("absence means unknown"). The entry is silently
+    # skipped from ingest/reconcile -- lint must not nag the curator for
+    # following spec.
     issues = lint(FIXTURES / "affinity_minimal.spdx.json").issues
-    messages = [i.message for i in issues if i.severity == "warning"]
-    assert any("no-version-pkg" in m and "missing PackageVersion" in m for m in messages)
+    messages = [i.message for i in issues]
+    assert not any("no-version-pkg" in m for m in messages)
 
 
 def test_backslash_name_is_a_warning() -> None:

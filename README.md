@@ -65,45 +65,59 @@ pip install -e .
 
 ## Usage
 
+One command, two paths in, one Markdown report out:
+
 ```bash
-# The curator's command: your SBOM + a scan -> change report
 sbom-curator ingest \
     --manual product.spdx \
     --syft   product.syft.spdx.json \
     --name   product-1.0.0
-
-# The raw four-bucket diff
-sbom-curator reconcile \
-    --manual product.spdx \
-    --syft   product.syft.spdx.json \
-    --name   product-1.0.0
-
-# Preflight an SPDX file: catch spec violations and silent-skip cases
-sbom-curator lint product.spdx
 ```
 
+Open `artifacts/product-1.0.0-ingest.md`, read four sections (added /
+bumped / only in your SBOM / unchanged), decide what to transfer by hand.
+That's the whole workflow. The manual SBOM is never modified.
+
 `--manual` accepts any SPDX 2.x serialization spdx-tools understands
-(tag-value `.spdx`, JSON, YAML, RDF/XML). **`--syft` must be SPDX** — if your
-scanner emits CycloneDX, convert first (`syft convert in.json -o
-spdx-json=out.spdx.json`) or re-scan with `-o spdx-json=...`. `ingest` writes
-`<output-dir>/<name>-ingest.md`; `reconcile` writes
-`<output-dir>/<name>-reconcile.md`. Exit code is `0` on success, `1` when a
-`--fail-on` gate is hit (e.g. `--fail-on added,bumped` for CI), `2` on parse
-failure.
+(tag-value `.spdx`, JSON, YAML, RDF/XML). **`--syft` must be SPDX** — if
+your scanner emits CycloneDX, convert first (`syft convert in.json -o
+spdx-json=out.spdx.json`) or re-scan with `-o spdx-json=...`. Exit code is
+`0` on success, `2` on parse failure.
 
-A directory scan of a multi-assembly app (notably .NET) needs two kinds of
-cleanup, both applied to the `--syft` side before the diff:
+### Optional extras (skip until the basic report is too noisy)
 
-- **Automatic:** loose binaries inside vendored source trees (a name that's a
-  path, version `UNKNOWN`) are dropped; a package the scan lists more than
-  once — exact duplicates, or a NuGet semver (`9.0.0`) alongside its .NET
-  assembly version (`9.0.24.52809`) — is collapsed to one. Genuine
-  multi-version installs are kept. The run prints how many it dropped.
-- **You point it out:** `--product-prefix` drops the product's own DLLs by
-  name prefix, e.g. `--product-prefix Hermes.` for an app whose assemblies
-  are all `Hermes.*` (also handy for framework noise you don't track:
-  `--product-prefix System. --product-prefix Microsoft.Extensions.`).
-  Repeatable, case-insensitive.
+```bash
+# Raw four-bucket diff instead of the action-relabelled change report.
+sbom-curator reconcile --manual ... --syft ... --name ...
+
+# Preflight: actionable line-numbered errors for the few SPDX gotchas
+# that block parsing (e.g. PackageVersion: NOASSERTION).
+sbom-curator lint product.spdx
+
+# Drop the product's own DLLs (a .NET app whose assemblies share a prefix
+# floods 'added' with hundreds of them otherwise). Repeatable.
+sbom-curator ingest ... --product-prefix Hermes
+
+# Gate CI on findings -- exit 1 instead of 0 if any listed bucket is
+# non-empty. Ingest: added,bumped,review,license. Reconcile:
+# only-in-syft,only-in-manual,version,license.
+sbom-curator ingest ... --fail-on added,bumped     # exit 1 if either non-empty
+```
+
+A manual entry can declare it covers a family of scan packages by adding
+one line to its `PackageComment` — e.g.
+`PackageComment: <text>sbom-curator covers-prefix: Vortice.</text>` makes
+that entry absorb every `Vortice.*` the scan finds. The report tells you
+when a tight cluster of "added" packages might warrant a new
+`covers-prefix:` annotation; you decide whether to add it. None of this
+is required.
+
+Cleanup that happens **automatically** every run (no flags, no thought):
+loose binaries inside vendored source trees (a name that's a filesystem
+path, version `UNKNOWN`) are dropped; a package the scan lists more than
+once is collapsed (Syft emitting the same NuGet 12×, or a NuGet semver
+alongside its .NET assembly version). Genuine multi-version installs are
+kept.
 
 ## Try it
 
@@ -147,32 +161,24 @@ disagreements: 2 / license disagreements: 1`). Empty sections render as
 `(none)` so reports diff cleanly run-to-run. See
 [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the curator's end-to-end guide.
 
-## v1 limitations (deliberate)
+## How matching works
 
-- **Matching is PURL first, then exact lowercase name, then family coverage.**
-  PURL match: if your entry and a scan entry share a package URL (compared
-  version-free), they match even when the names differ — recording
-  `pkg:nuget/System.Reactive@4.4.1` on your `Reactive` entry bridges it to
-  the scan's `System.Reactive`. Name match: literal lowercased equality.
-  Family coverage: add `PackageComment: <text>sbom-curator covers-prefix:
-  Vortice.</text>` to an entry and the matcher absorbs every still-unmatched
-  scan package whose name starts with that prefix — `Vortice` covers
-  `Vortice.DXGI`, `Vortice.Direct3D11`, etc. Covered packages land in a
-  dedicated `## Covered by a family entry` section, not in `## Added`.
-- **Version equivalence** uses PEP 440. `1.0` and `1.0.0` agree;
-  `1.0.0+local` is a distinct release. Unparseable versions fall back to strict
-  string equality.
-- **License equivalence** uses SPDX expression parsing.
-  `Apache-2.0 OR MIT` and `MIT OR Apache-2.0` agree; `Apache-2.0` and `Apache
-  2.0` do not (the latter isn't a valid SPDX identifier). A *license change* is
-  only reported when **both** sides carry a license and they differ — "you say
-  MIT, the scan says nothing" is silence, not a finding.
-- **SPDX only.** If your scanner emits CycloneDX, convert it to SPDX JSON
-  first (`syft convert`) — no in-tree translation layer.
-- **Neither command writes back to your SBOM.** `ingest` produces a report;
-  you apply it by hand. Auto-rewrite (`ingest --apply`) is deferred and will
-  stay opt-in — see [`BACKLOG.md`](BACKLOG.md). Editing by hand keeps your
-  formatting, comments, package groupings, and curated relationships intact.
+- **Matching tries PURL first, then exact lowercased name, then optional
+  family coverage.** A PURL on your manual entry bridges renames (record
+  `pkg:nuget/System.Reactive@4.4.1` on a `Reactive` entry and it matches
+  the scan's `System.Reactive`). Name match is literal. Family coverage
+  is opt-in (`covers-prefix:` annotation, above) and only fires for
+  entries still unmatched after the first two passes.
+- **Version equivalence** uses PEP 440, plus the NuGet semver ↔ .NET
+  assembly-revision pattern (`4.4.1` ↔ `4.4.1.57983`). `1.0` and `1.0.0`
+  agree; `1.0.0+local` is a distinct release.
+- **License equivalence** uses SPDX expression parsing. A *license
+  change* is only reported when **both** sides carry a license and they
+  differ — "you say MIT, the scan says nothing" is silence, not a finding.
+- **Neither command writes back to your SBOM.** `ingest` produces a
+  report; you apply it by hand. That's the point — auto-rewrite would
+  lose your formatting, comments, package groupings, and curated
+  relationships, all of which matter to a regulator.
 
 ## Development
 
