@@ -20,17 +20,6 @@ right shape, and product-prefix suggestion has more risk of misleading a
 curator into typing the wrong thing than covers-prefix does. Revisit
 when a new product onboards and the discovery friction shows up.
 
-### Folder-scan mode
-
-**Trigger:** running `ingest --manual … --syft … --name …` pairwise
-across several products gets tedious.
-
-`sbom-curator ingest artifacts/` (or a dedicated verb) would discover
-matching `manual/<name>.spdx` + `syft/<name>.syft.spdx.json` pairs in
-the conventional layout and write `reports/<name>-ingest.md` for each.
-Pure convenience over the explicit-flags form; needs the multi-product
-workflow to actually exist first.
-
 ### Auto-detect the product's own assemblies on the scan side
 
 **Partly shipped (PR #20): `--product-prefix`.** The Affinity 5.0.0
@@ -132,3 +121,4 @@ covers them.
 | PR #26 | `versions_equal` accepts the NuGet semver ↔ .NET assembly-version pattern (`4.4.1` ↔ `4.4.1.57983`, length pair (3, 4), first three components equal) — kills the spurious `Reactive` bump |
 | PR #27 | `--fail-on` on `ingest` (`added`, `bumped`, `review`, `license`) and `reconcile` (`only-in-syft`, `only-in-manual`, `version`, `license`) — exit 1 when any listed bucket is non-empty, so CI can gate on reconciliation findings |
 | PR #28 | `CHANGELOG.md` + bump to v0.1.0 — first tagged release |
+| PR #31 | Folder-scan mode — `sbom-curator ingest <PATH>` discovers conventional `manual/`/`syft/` pairs and ingests each; `--strict-naming` opt-in for CI; aggregate exit code; per-pair parse-failure tolerance |

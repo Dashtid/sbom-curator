@@ -162,6 +162,45 @@ could declare coverage for).
 formatting, comments, package groupings, and curated relationships —
 which is what the regulator sees and audits.
 
+#### Folder-scan mode (multiple products at once)
+
+Once you're maintaining two or more SBOMs that follow the convention
+above, the explicit-flags form gets repetitive. `ingest` accepts a
+positional folder path instead:
+
+```bash
+sbom-curator ingest artifacts/
+```
+
+It discovers every `<name>.spdx` in `artifacts/manual/` that has a
+matching `<name>.syft.spdx.json` in `artifacts/syft/`, runs the per-pair
+pipeline for each, and writes one report per pair to
+`artifacts/reports/<name>-ingest.md`.
+
+One-line console summary per pair plus a footer with processed / gate /
+parse-error counts. Exit code is the worst outcome across pairs (2 for
+parse failure, 1 for any `--fail-on` gate hit, 0 clean). Per-pair parse
+failures don't abort the run — the report still gets written for the
+pairs that parsed.
+
+The positional path is mutually exclusive with `--manual` / `--syft` /
+`--name`; pick one mode. Global flags (`--product-prefix`, `--fail-on`)
+apply to every pair.
+
+Loose-by-default extension matching tolerates non-canonical scan
+filenames (`.sbom.spdx.json`, `.spdx.json`) and dotted-vs-dashed version
+segments. For CI runs that should enforce the convention strictly, pass
+`--strict-naming` — that requires `.syft.spdx.json` exactly. Files in
+`manual/` and `syft/` that have a counterpart only on one side are
+reported as orphans; files that don't match any expected extension are
+silently skipped.
+
+A real-world curator filename like `P60-199-01 SBOM Affinity 6.0.0.spdx`
+will not auto-pair with `affinity.6.0.0.72.sbom.spdx.json` — the stems
+are too different. Either rename to the convention
+(`affinity-6.0.0.spdx` + `affinity-6.0.0.syft.spdx.json`) or fall back
+to the explicit-flags form for that pair.
+
 #### Optional knobs (skip until the basic report is too noisy)
 
 A first run on a real product can produce a long *added* section, much
