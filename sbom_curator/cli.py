@@ -5,6 +5,12 @@ import click
 from rich.console import Console
 
 from sbom_curator import __version__
+from sbom_curator.curate.discover import (
+    DiscoveryError,
+    DiscoveryResult,
+    Pair,
+    discover,
+)
 from sbom_curator.curate.ingest import EditPlan
 from sbom_curator.curate.ingest import plan as build_plan
 from sbom_curator.curate.scope import dedupe_scan, drop_by_name_prefix
@@ -42,6 +48,14 @@ _RECONCILE_FAIL_ON_HELP = (
     "Exit 1 when any of the listed buckets is non-empty (default: never). "
     f"Comma-separated; valid: {', '.join(_RECONCILE_GATES)}."
 )
+_PATH_HELP = (
+    "Folder-scan mode: discover (manual, scan) pairs under PATH/manual/ + "
+    "PATH/syft/ and ingest each. Mutually exclusive with --manual/--syft/--name."
+)
+_STRICT_NAMING_HELP = (
+    "Folder-scan only: reject non-canonical scan extensions "
+    "(.sbom.spdx.json, .spdx.json). Use in CI to enforce the convention."
+)
 
 
 @click.group()
@@ -56,28 +70,80 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 
 
 @cli.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, path_type=Path),
+                required=False)
 @click.option("--manual", "manual", type=click.Path(exists=True, path_type=Path),
-              required=True, help=_MANUAL_HELP)
+              required=False, default=None, help=_MANUAL_HELP)
 @click.option("--syft", "syft", type=click.Path(exists=True, path_type=Path),
-              required=True, help=_SYFT_HELP)
-@click.option("--name", "name", required=True, help=_NAME_HELP)
+              required=False, default=None, help=_SYFT_HELP)
+@click.option("--name", "name", required=False, default=None, help=_NAME_HELP)
 @click.option("--output-dir", "output_dir", type=click.Path(path_type=Path),
-              default=Path("artifacts"), show_default=True, help=_OUTPUT_HELP)
+              default=None, help=_OUTPUT_HELP)
 @click.option("--product-prefix", "product_prefixes", multiple=True, metavar="PREFIX",
               help=_PRODUCT_PREFIX_HELP)
 @click.option("--fail-on", "fail_on", type=str, default=None, metavar="BUCKETS",
               help=_INGEST_FAIL_ON_HELP)
-def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
-           product_prefixes: tuple[str, ...], fail_on: str | None) -> None:
+@click.option("--strict-naming", "strict_naming", is_flag=True, default=False,
+              help=_STRICT_NAMING_HELP)
+def ingest(path: Path | None, manual: Path | None, syft: Path | None,
+           name: str | None, output_dir: Path | None,
+           product_prefixes: tuple[str, ...], fail_on: str | None,
+           strict_naming: bool) -> None:
     """Report what a scan changed relative to your SBOM: added / bumped / review.
 
-    Writes a change report you act on by hand. This command does not
-    modify the manual SBOM.
+    Two invocation modes:
+
+    \b
+    * Single pair (explicit flags):
+        sbom-curator ingest --manual M --syft S --name N
+    * Folder scan (discovers pairs in <PATH>/manual/ + <PATH>/syft/):
+        sbom-curator ingest <PATH>
+
+    Writes one Markdown change report per pair. Does not modify the
+    manual SBOM.
     """
     gates = _parse_gates(fail_on, _INGEST_GATES)
-    result = _run_ingest_pair(manual, syft, name, output_dir, product_prefixes, gates)
-    plan = result.plan
 
+    if path is not None:
+        # Folder-scan mode
+        if manual or syft or name:
+            raise click.UsageError(
+                "PATH is mutually exclusive with --manual/--syft/--name; "
+                "use folder-scan or single-pair, not both."
+            )
+        _run_ingest_folder(
+            path, output_dir, product_prefixes, gates, strict_naming
+        )
+        return
+
+    # Single-pair mode
+    if manual is None or syft is None or name is None:
+        missing = [
+            flag for flag, val in [("--manual", manual), ("--syft", syft), ("--name", name)]
+            if val is None
+        ]
+        raise click.UsageError(
+            f"Missing required option(s): {', '.join(missing)} "
+            "(or provide PATH for folder-scan mode)."
+        )
+    if strict_naming:
+        raise click.UsageError("--strict-naming is only valid in folder-scan mode.")
+    resolved_output = output_dir or Path("artifacts")
+    try:
+        result = _run_ingest_pair(
+            manual, syft, name, resolved_output, product_prefixes, gates
+        )
+    except SpdxParseError as exc:
+        console.print(f"[red][-][/red] {exc}")
+        raise click.exceptions.Exit(code=2) from exc
+    _print_single_pair_summary(result)
+    if result.gate_hits:
+        console.print(f"[red][-][/red] gate hit: {', '.join(sorted(result.gate_hits))}")
+        raise click.exceptions.Exit(code=1)
+
+
+def _print_single_pair_summary(result: "_IngestPairResult") -> None:
+    plan = result.plan
     changed = len(plan.keeps_with_license_change)
     keep_note = f" ({changed} with a license change)" if changed else ""
     console.print(f"[green][+][/green] wrote {result.path}")
@@ -93,9 +159,100 @@ def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
         console.print(
             f"[blue]\\[i][/blue] {len(result.suggestions)} suggested annotation(s) — see the report"
         )
-    if result.gate_hits:
-        console.print(f"[red][-][/red] gate hit: {', '.join(sorted(result.gate_hits))}")
+
+
+def _run_ingest_folder(
+    root: Path,
+    output_dir: Path | None,
+    product_prefixes: tuple[str, ...],
+    gates: set[str],
+    strict_naming: bool,
+) -> None:
+    """Discover (manual, scan) pairs under ``root`` and ingest each one.
+
+    Per-pair errors don't abort the whole run — they're reported and
+    counted, with the aggregate exit code reflecting the worst outcome
+    across pairs (2 = parse failure, 1 = gate hit, 0 = clean).
+    """
+    try:
+        discovery = discover(root, strict=strict_naming)
+    except DiscoveryError as exc:
+        console.print(f"[red][-][/red] {exc}")
+        raise click.exceptions.Exit(code=2) from exc
+
+    if not discovery.pairs:
+        console.print(f"[red][-][/red] no (manual, scan) pairs found in {root}")
+        _print_orphans(discovery)
+        raise click.exceptions.Exit(code=2)
+
+    resolved_output = output_dir or (root / "reports")
+    console.print(
+        f"[blue]\\[i][/blue] discovered {len(discovery.pairs)} pair(s) in {root}"
+    )
+    _print_orphans(discovery)
+
+    n_processed = 0
+    n_gate_hits = 0
+    n_parse_errors = 0
+    for pair in discovery.pairs:
+        outcome = _process_folder_pair(
+            pair, resolved_output, product_prefixes, gates
+        )
+        if outcome == "parse_error":
+            n_parse_errors += 1
+        elif outcome == "gate_hit":
+            n_processed += 1
+            n_gate_hits += 1
+        else:
+            n_processed += 1
+
+    console.print(
+        f"[blue]\\[i][/blue] processed {n_processed} pair(s); "
+        f"{n_gate_hits} gate hit(s); {n_parse_errors} parse error(s)"
+    )
+
+    if n_parse_errors > 0:
+        raise click.exceptions.Exit(code=2)
+    if n_gate_hits > 0:
         raise click.exceptions.Exit(code=1)
+
+
+def _process_folder_pair(
+    pair: Pair,
+    output_dir: Path,
+    product_prefixes: tuple[str, ...],
+    gates: set[str],
+) -> str:
+    """Run a single pair in folder mode. Returns 'ok', 'gate_hit', or 'parse_error'."""
+    try:
+        result = _run_ingest_pair(
+            pair.manual, pair.syft, pair.name, output_dir, product_prefixes, gates
+        )
+    except SpdxParseError as exc:
+        console.print(f"[red][-][/red] {pair.name}: {exc}")
+        return "parse_error"
+    plan = result.plan
+    gate_marker = (
+        f" [GATE: {', '.join(sorted(result.gate_hits))}]" if result.gate_hits else ""
+    )
+    console.print(
+        f"[green][+][/green] {pair.name}: "
+        f"added={len(plan.added)} bumped={len(plan.bumped)} "
+        f"review={len(plan.reviews)} covered={len(plan.covered)} "
+        f"→ {result.path}{gate_marker}"
+    )
+    return "gate_hit" if result.gate_hits else "ok"
+
+
+def _print_orphans(discovery: DiscoveryResult) -> None:
+    for p in discovery.orphan_manuals:
+        console.print(
+            f"[yellow][!][/yellow] orphan manual (no matching scan): {p.name}"
+        )
+    for p in discovery.orphan_scans:
+        console.print(
+            f"[yellow][!][/yellow] orphan scan (no matching manual): {p.name}"
+        )
 
 
 @cli.command()
@@ -114,7 +271,11 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
               product_prefixes: tuple[str, ...], fail_on: str | None) -> None:
     """Raw four-bucket diff of the two SBOMs (only-in-manual / only-in-Syft / disagreements)."""
     gates = _parse_gates(fail_on, _RECONCILE_GATES)
-    manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
+    try:
+        manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
+    except SpdxParseError as exc:
+        console.print(f"[red][-][/red] {exc}")
+        raise click.exceptions.Exit(code=2) from exc
 
     result = reconcile_components(manual_components, syft_components)
     suggestions = _suggestions_from(manual_components, result.only_in_syft)
@@ -260,15 +421,12 @@ def _load_inputs(
 
     Drops the product's own assemblies (``--product-prefix``) and collapses
     duplicate scan entries (:func:`~sbom_curator.curate.scope.dedupe_scan`),
-    printing a count for each step that removed anything. Exits 2 with a
-    message on parse failure.
+    printing a count for each step that removed anything. Raises
+    :class:`SpdxParseError` on parse failure — caller decides whether to
+    exit (single-pair) or print + continue (folder mode).
     """
-    try:
-        manual_components = load(manual, source="manual")
-        syft_components = load(syft, source="syft")
-    except SpdxParseError as exc:
-        console.print(f"[red][-][/red] {exc}")
-        raise click.exceptions.Exit(code=2) from exc
+    manual_components = load(manual, source="manual")
+    syft_components = load(syft, source="syft")
     syft_components, filtered = drop_by_name_prefix(syft_components, product_prefixes)
     if filtered:
         console.print(
