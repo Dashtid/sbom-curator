@@ -87,6 +87,11 @@ spdx-json=out.spdx.json`) or re-scan with `-o spdx-json=...`. Exit code is
 ### Optional extras (skip until the basic report is too noisy)
 
 ```bash
+# Folder-scan mode: discover every (manual, scan) pair in the conventional
+# artifacts/manual/ + artifacts/syft/ layout and ingest each. One report
+# per pair lands in artifacts/reports/. Worst exit code across pairs wins.
+sbom-curator ingest artifacts/
+
 # Raw four-bucket diff instead of the action-relabelled change report.
 sbom-curator reconcile --manual ... --syft ... --name ...
 

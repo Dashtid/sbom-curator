@@ -6,6 +6,42 @@ All notable changes to sbom-curator are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-17
+
+### Added
+
+- **Folder-scan mode** for `ingest`. `sbom-curator ingest <PATH>`
+  discovers every `<name>.spdx` in `<PATH>/manual/` that has a matching
+  `<name>.syft.spdx.json` in `<PATH>/syft/`, runs the per-pair pipeline
+  for each, and writes one report per pair to `<PATH>/reports/`. Mutually
+  exclusive with `--manual`/`--syft`/`--name` — pick one mode.
+- `--strict-naming` flag (folder-scan only) — rejects non-canonical scan
+  extensions (`.sbom.spdx.json`, `.spdx.json`). For CI runs that should
+  enforce the documented convention strictly. Default is loose: those
+  alternate infixes are tolerated.
+- Per-pair console output in folder mode is a single line
+  (`added=N bumped=N review=N covered=N → <report path>`) plus an
+  aggregate footer (`processed N pair(s); M gate hit(s); K parse error(s)`).
+  Exit code is the worst outcome across pairs (2 for parse failure,
+  1 for any `--fail-on` gate hit, 0 clean). Per-pair parse failures
+  don't abort — other pairs still produce reports.
+- Orphan reporting: manuals without a matching scan and scans without a
+  matching manual are surfaced as warnings rather than hidden.
+
+### Internal
+
+- `_run_ingest_pair` extracted from the `ingest` command body, callable
+  from both single-pair and folder-scan dispatchers.
+- `_load_inputs` now raises `SpdxParseError` on parse failure instead of
+  printing + exiting; callers decide whether to terminate (single-pair,
+  `reconcile`) or continue to the next pair (folder mode).
+- New `sbom_curator.curate.discover` module: `Pair`, `DiscoveryResult`,
+  `discover()`. Loose-by-default stem matching normalizes dots / spaces /
+  underscores to dashes; strict mode requires the canonical pattern.
+
+[Unreleased]: https://github.com/Dashtid/sbom-curator/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Dashtid/sbom-curator/releases/tag/v0.2.0
+
 ## [0.1.0] — 2026-05-13
 
 The shape of the v1 tool: a curator maintains one SPDX 2.x SBOM by hand,
@@ -78,5 +114,4 @@ annotations). The manual SBOM is never modified.
   coverage at 100%. ASCII-only user-facing strings (`[+] [-] [!] [i]`).
   GitHub Actions pinned to commit SHAs; Dependabot active.
 
-[Unreleased]: https://github.com/Dashtid/sbom-curator/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Dashtid/sbom-curator/releases/tag/v0.1.0
