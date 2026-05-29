@@ -11,6 +11,7 @@ from sbom_curator.curate.discover import (
     Pair,
     discover,
 )
+from sbom_curator.curate.finalize import discover_manuals, strip_tool_annotations
 from sbom_curator.curate.ingest import EditPlan
 from sbom_curator.curate.ingest import plan as build_plan
 from sbom_curator.curate.scope import dedupe_scan, drop_by_name_prefix
@@ -303,6 +304,118 @@ def reconcile(manual: Path, syft: Path, name: str, output_dir: Path,
     if hit:
         console.print(f"[red][-][/red] gate hit: {', '.join(sorted(hit))}")
         raise click.exceptions.Exit(code=1)
+
+
+_FINALIZE_PATH_HELP = (
+    "Folder mode: read <PATH>/manual/*.spdx, write <PATH>/finalized/<same>.spdx. "
+    "Mutually exclusive with --manual/--output."
+)
+_FINALIZE_MANUAL_HELP = (
+    "Single-file mode: source SPDX tag-value SBOM to strip. Not modified."
+)
+_FINALIZE_OUTPUT_HELP = (
+    "Single-file mode: path to write the finalized (stripped) SBOM."
+)
+
+
+@cli.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, path_type=Path),
+                required=False)
+@click.option("--manual", "manual", type=click.Path(exists=True, path_type=Path),
+              required=False, default=None, help=_FINALIZE_MANUAL_HELP)
+@click.option("--output", "output", type=click.Path(path_type=Path),
+              required=False, default=None, help=_FINALIZE_OUTPUT_HELP)
+def finalize(path: Path | None, manual: Path | None, output: Path | None) -> None:
+    """Strip ``sbom-curator`` tool annotations for delivery to authorities.
+
+    Removes ``sbom-curator <key>: ...`` lines (e.g. ``covers-prefix``) from
+    ``PackageComment`` blocks. Preserves all other content byte-for-byte; a
+    block whose entire content was tool annotations is removed in full. The
+    source SBOM is not modified.
+
+    Two modes:
+
+    \b
+    * Single file:
+        sbom-curator finalize --manual M --output O
+    * Folder mode:
+        sbom-curator finalize <PATH>
+            reads  <PATH>/manual/*.spdx
+            writes <PATH>/finalized/<same-name>.spdx
+
+    Tag-value SPDX only.
+    """
+    if path is not None:
+        if manual is not None or output is not None:
+            raise click.UsageError(
+                "PATH is mutually exclusive with --manual/--output; "
+                "use folder mode or single-file mode, not both."
+            )
+        _run_finalize_folder(path)
+        return
+
+    if manual is None or output is None:
+        missing = [
+            flag for flag, val in [("--manual", manual), ("--output", output)]
+            if val is None
+        ]
+        raise click.UsageError(
+            f"Missing required option(s): {', '.join(missing)} "
+            "(or provide PATH for folder mode)."
+        )
+    _run_finalize_single(manual, output)
+
+
+def _run_finalize_single(manual: Path, output: Path) -> None:
+    n_stripped = _finalize_one(manual, output)
+    console.print(f"[green][+][/green] wrote {output}")
+    if n_stripped:
+        console.print(
+            f"[blue]\\[i][/blue] stripped {n_stripped} tool annotation(s)"
+        )
+    else:
+        console.print("[blue]\\[i][/blue] no tool annotations to strip")
+
+
+def _run_finalize_folder(root: Path) -> None:
+    try:
+        manuals = discover_manuals(root)
+    except DiscoveryError as exc:
+        console.print(f"[red][-][/red] {exc}")
+        raise click.exceptions.Exit(code=2) from exc
+    if not manuals:
+        console.print(
+            f"[red][-][/red] no .spdx manuals found in {root / 'manual'}"
+        )
+        raise click.exceptions.Exit(code=2)
+
+    finalized_dir = root / "finalized"
+    finalized_dir.mkdir(parents=True, exist_ok=True)
+    console.print(
+        f"[blue]\\[i][/blue] discovered {len(manuals)} manual(s) in "
+        f"{root / 'manual'}"
+    )
+
+    total_stripped = 0
+    for source in manuals:
+        target = finalized_dir / source.name
+        n = _finalize_one(source, target)
+        total_stripped += n
+        console.print(
+            f"[green][+][/green] {source.name}: stripped {n} -> {target}"
+        )
+    console.print(
+        f"[blue]\\[i][/blue] finalized {len(manuals)} file(s); "
+        f"stripped {total_stripped} tool annotation(s) total"
+    )
+
+
+def _finalize_one(source: Path, target: Path) -> int:
+    text = source.read_text(encoding="utf-8")
+    cleaned, n_stripped = strip_tool_annotations(text)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(cleaned, encoding="utf-8")
+    return n_stripped
 
 
 @cli.command(name="lint")
