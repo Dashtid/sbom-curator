@@ -8,92 +8,66 @@ their trigger so the codebase stays free of speculative complexity.
 
 ### Auto-suggest `--product-prefix`
 
-**Partly shipped (PR #25): `covers-prefix` suggestions.** Tight name
-clusters in *added* that no manual entry covers now surface as
-`Suggested annotations` in the report and a console line. **Still open:**
-the same machinery could spot a candidate `--product-prefix` — likely
-the largest *added* cluster on a first run (no Hermes-filter applied),
-or the cluster whose prefix overlaps the manual's `DESCRIBES` target.
-Punted from PR #25 because every heuristic is liable to false positives
-on a wrong auto-apply; "suggest in the report, never auto-apply" is the
-right shape, and product-prefix suggestion has more risk of misleading a
-curator into typing the wrong thing than covers-prefix does. Revisit
-when a new product onboards and the discovery friction shows up.
+Partly shipped (PR #25): tight name clusters in *added* surface as
+`Suggested annotations` in the report. Still open: detect a candidate
+`--product-prefix` — likely the largest *added* cluster on a first run, or
+the cluster whose prefix overlaps the manual's `DESCRIBES` target. Punted
+from PR #25 because false-positive auto-apply is high-risk; "suggest in the
+report, never auto-apply" is the right shape. Revisit when a new product
+onboards and the discovery friction shows up.
 
 ### Auto-detect the product's own assemblies on the scan side
 
-**Partly shipped (PR #20): `--product-prefix`.** The Affinity 5.0.0
-directory scan listed ~472 `Hermes.*` .NET assemblies — the product
-itself, decomposed into its DLLs — every one an *added* entry. PR #16
-filters packages that share a name with a `DESCRIBES` target, but a
-*directory* scan's `DESCRIBES` target is a synthetic component named
-after the directory, not "Hermes", so the assemblies slip through.
-`ingest --product-prefix Hermes.` now drops them by name prefix (a
-curator hint; repeatable, so it doubles as the knob for framework noise
-the curator deliberately doesn't enumerate — `--product-prefix System.
---product-prefix Microsoft.Extensions.`). **Still open:** infer the
-product prefix automatically — e.g. from the product name the *manual*
-SBOM `DESCRIBES`, or from the dominant assembly-name cluster in the scan
-— so the curator doesn't have to supply it. Must not over-filter a real
-dependency that legitimately shares a prefix with the product.
+Partly shipped (PR #20): `--product-prefix Hermes.` drops the ~470
+`Hermes.*` assemblies a directory scan picks up. Still open: infer the
+product prefix automatically — from the product name the manual SBOM
+`DESCRIBES`, or from the dominant assembly-name cluster — so the curator
+doesn't have to supply it. Must not over-filter a real dependency that
+legitimately shares a prefix with the product.
 
-**Deferred — config file.** If a curator finds themselves passing the
-same handful of `--product-prefix` (and, later, `--fail-on`,
-coverage-hint, etc.) flags on every run, that's the trigger to add a
-project config file (`sbom-curator.toml` or `--config path`). Not before
-— a flag or two on the command line is fine; a config layer with no
-settled set of settings to hold is speculative.
-
+**Deferred — config file.** If a curator passes the same handful of flags
+on every run, that's the trigger to add `sbom-curator.toml` / `--config
+path`. Not before — a flag or two on the command line is fine.
 
 ## Decided against
 
-- **CycloneDX (or other non-SPDX) input parser.** The workflow produces
-  SPDX JSON (`syft scan ... -o spdx-json=...`); a CycloneDX file is
-  converted externally first (`syft convert in.json -o spdx-json=out.spdx.json`).
-  Keeping the parser layer SPDX-only avoids carrying a translation layer
-  whose only job is to undo a flag the user controls. Revisit only if a
-  workflow genuinely *cannot* produce or convert to SPDX.
+- **CycloneDX (or other non-SPDX) input parser.** The workflow produces SPDX
+  JSON (`syft scan ... -o spdx-json=...`); a CycloneDX file is converted
+  externally (`syft convert in.json -o spdx-json=out.spdx.json`). Keeping the
+  parser SPDX-only avoids a translation layer whose only job is to undo a
+  flag the user controls.
 
-- **`ingest --apply`** (write the edit plan back to the manual SBOM).
-  The cost is high — must preserve the curator's formatting, comments,
-  package groupings, and curated relationships, which rules out
-  parse-and-re-serialise — and the value is low: reading the report and
-  applying changes by hand is the part the curator wants control over.
+- **`ingest --apply`** (write the edit plan back to the manual SBOM). High
+  cost (must preserve formatting, comments, groupings, and curated
+  relationships — rules out parse-and-re-serialize), low value (reading the
+  report and applying changes by hand is the part the curator wants
+  control over).
 
-- **Coverage glob support beyond literal prefix.** A glob like
-  `Vortice.*WPF.*` would be an obvious extension to `covers-prefix:` but
-  no real case has shown up. Revisit if a curator entry's intended
-  coverage genuinely can't be expressed as a single name prefix.
+- **Coverage glob support beyond literal prefix.** `Vortice.*WPF.*` would be
+  an obvious extension but no real case has shown up.
 
 - **Coverage version-spread sanity check.** A warning when an umbrella's
-  covered sub-packages span an unusually wide version range could flag
-  side-by-side installs of two family versions. Schemes diverge between
-  umbrellas (e.g. marketing `2022.2`) and sub-packages (`22.2.19`), so a
-  naive check is noisy. Revisit when a real run misses something the
-  curator wishes had been flagged.
+  sub-packages span an unusually wide version range. Schemes diverge
+  between umbrellas (marketing `2022.2`) and sub-packages (`22.2.19`), so
+  naive checks are noisy.
 
-- **Dedup residuals from PR #21:** (a) collapse name-groups with three
-  or more distinct versions where only some are precision-variants —
-  currently kept whole; (b) key dedup on PURL as well as name; (c) a
-  `## Collapsed scan duplicates` audit appendix in the report. Each is
-  marginal noise reduction at this point; revisit if a real run shows
-  the noise.
+- **Dedup residuals from PR #21.** (a) Collapse name-groups with three or
+  more distinct versions where only some are precision-variants; (b) key
+  dedup on PURL as well as name; (c) `## Collapsed scan duplicates` audit
+  appendix. Each is marginal noise reduction; revisit if a real run shows
+  it.
 
-- **Snapshot tests for the Markdown report.** `tests/test_report.py`
-  pins each rendering primitive; a full-report snapshot would catch
-  cross-section layout regressions but at the cost of pinning every
-  small rendering tweak. Add only if a layout regression actually slips
-  through CI.
+- **Snapshot tests for the Markdown report.** `tests/test_report.py` pins
+  each rendering primitive; a full-report snapshot would catch cross-section
+  layout regressions at the cost of pinning every rendering tweak.
 
-- **Project config file (`sbom-curator.toml`).** The trigger ("curator
-  passes the same handful of `--product-prefix`/`--fail-on`/etc. flags
-  on every run") isn't met — Affinity needs one prefix flag. Revisit
-  when a second product onboards and the flag-set stabilises.
+- **Project config file (`sbom-curator.toml`).** Trigger (curator passes
+  the same flags on every run) not met — Affinity needs one prefix flag.
+  Revisit when a second product onboards and the flag-set stabilises.
 
 ## Done
 
-Recorded for context; remove entries once the project context fully
-covers them.
+Recorded for context; remove once project memory fully covers them.
 
 | Shipped in | What |
 | --- | --- |
@@ -104,22 +78,22 @@ covers them.
 | PR #5 | Reconciler + Markdown report + CLI wiring |
 | PR #6 | README running example + `[i]` marker escape fix |
 | PR #7 | Loose version (PEP 440) + license (SPDX expression) equivalence |
-| PR #9 | Content-sniff SPDX tag-value under `.txt` extension (real customer SBOMs commonly land as `.txt`) |
+| PR #9 | Content-sniff SPDX tag-value under `.txt` extension |
 | PR #12 | Rename project sbom-overlay → sbom-curator |
-| PR #13 | Reframe docs around the FDA-curator workflow; report file → `-reconcile.md` |
+| PR #13 | Reframe docs around FDA-curator workflow; report file → `-reconcile.md` |
 | PR #14 | Re-fatten the dogfood manual SBOM to the comprehensive FDA shape |
 | PR #15 | `ingest` command (added / bumped / review / keep change report) |
-| PR #16 | Filter the product out of the Syft side (skip packages sharing a name with a DESCRIBES target) |
+| PR #16 | Filter the product out of the Syft side |
 | PR #17 | Pin GitHub Actions to commit SHAs + add Dependabot |
-| PR #19 | Reframe `ingest` as a per-scan change report; soften the "comprehensive manual" framing |
-| PR #20 | `--product-prefix` — drop the product's own assemblies (e.g. `Hermes.*`) from the scan side |
-| PR #21 | Scan-side hygiene — drop `UNKNOWN`-version / path-named entries (parser); `dedupe_scan` collapses exact dups + precision-variant pairs |
-| PR #22 | PURL-aware matching — match manual↔scan on equal version-free PURLs before falling back to lowercased name |
-| PR #23 | Family-prefix coverage — `PackageComment: sbom-curator covers-prefix: <X>` on a manual entry absorbs unmatched scan packages whose name starts with `<X>` into a dedicated `covered` bucket |
-| PR #24 | `lint` subcommand — translate spdx-tools' opaque grammar errors into line-numbered actionable messages (`PackageVersion: NOASSERTION`, SPDX 2.3 §7.3); warn on packages `ingest`/`reconcile` would silently skip |
-| PR #25 | Auto-suggest `covers-prefix` — tight name clusters in *added* that no manual entry covers surface in a `## Suggested annotations` section with the exact annotation text |
-| PR #26 | `versions_equal` accepts the NuGet semver ↔ .NET assembly-version pattern (`4.4.1` ↔ `4.4.1.57983`, length pair (3, 4), first three components equal) — kills the spurious `Reactive` bump |
-| PR #27 | `--fail-on` on `ingest` (`added`, `bumped`, `review`, `license`) and `reconcile` (`only-in-syft`, `only-in-manual`, `version`, `license`) — exit 1 when any listed bucket is non-empty, so CI can gate on reconciliation findings |
-| PR #28 | `CHANGELOG.md` + bump to v0.1.0 — first tagged release |
-| PR #31 | Folder-scan mode — `sbom-curator ingest <PATH>` discovers conventional `manual/`/`syft/` pairs and ingests each; `--strict-naming` opt-in for CI; aggregate exit code; per-pair parse-failure tolerance |
-| PR #32 | `finalize` subcommand — strip `sbom-curator <key>:` tool annotations from `PackageComment` blocks; single-file (`--manual` + `--output`) or folder (`<PATH>/manual/` → `<PATH>/finalized/`); namespaced (catches future annotations); text-level edit preserves all other bytes |
+| PR #19 | Reframe `ingest` as a per-scan change report |
+| PR #20 | `--product-prefix` — drop the product's own assemblies from the scan side |
+| PR #21 | Scan-side hygiene — drop `UNKNOWN`-version / path-named entries; `dedupe_scan` |
+| PR #22 | PURL-aware matching |
+| PR #23 | Family-prefix coverage — `PackageComment: ... covers-prefix: <X>` |
+| PR #24 | `lint` subcommand — line-numbered SPDX grammar errors + skip warnings |
+| PR #25 | Auto-suggest `covers-prefix` — tight name clusters surface in the report |
+| PR #26 | `versions_equal` accepts NuGet semver ↔ .NET assembly-version pattern |
+| PR #27 | `--fail-on` on `ingest` and `reconcile` |
+| PR #28 | `CHANGELOG.md` + v0.1.0 — first tagged release |
+| PR #31 | Folder-scan mode — `sbom-curator ingest <PATH>` discovers `manual/`/`syft/` pairs |
+| PR #32 | `finalize` subcommand — strip `sbom-curator <key>:` tool annotations for delivery |
