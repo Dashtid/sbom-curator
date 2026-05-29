@@ -107,6 +107,12 @@ sbom-curator ingest ... --product-prefix Hermes
 # non-empty. Ingest: added,bumped,review,license. Reconcile:
 # only-in-syft,only-in-manual,version,license.
 sbom-curator ingest ... --fail-on added,bumped     # exit 1 if either non-empty
+
+# Finalize: strip sbom-curator covers-prefix (and any other sbom-curator
+# <key>:) annotations from your manual SBOM, producing a clean copy for
+# delivery to the regulator. Source is never modified.
+sbom-curator finalize artifacts/                   # folder: manual/ -> finalized/
+sbom-curator finalize --manual M --output O        # single file
 ```
 
 A manual entry can declare it covers a family of scan packages by adding
