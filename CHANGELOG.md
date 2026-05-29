@@ -6,6 +6,32 @@ All notable changes to sbom-curator are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`finalize` subcommand** — strip `sbom-curator <key>: <value>` tool
+  annotations (e.g. `covers-prefix`) from `PackageComment` blocks,
+  producing a clean copy of the manual SBOM suitable for delivery to a
+  regulator. Two modes mirror `ingest`:
+  - Single file: `sbom-curator finalize --manual M --output O`.
+  - Folder: `sbom-curator finalize <PATH>` reads `<PATH>/manual/*.spdx`
+    and writes `<PATH>/finalized/<same-name>.spdx` (folder is a sibling
+    of `reports/`).
+- Stripping is namespaced — any line matching `sbom-curator <key>: <value>`
+  inside a `PackageComment` `<text>...</text>` block is removed, not just
+  `covers-prefix:`. A block whose entire content was tool annotations is
+  removed in full (including its trailing newline); a mixed block keeps
+  the curator's notes and loses the tool lines.
+- Text-level edit only (no parse-and-serialize), so the working copy and
+  the finalized copy differ only by the stripped lines — every other
+  byte (formatting, ordering, copyright text, ExternalRef, license
+  expressions) is preserved exactly. The source SBOM is never modified.
+
+### Internal
+
+- New `sbom_curator.curate.finalize` module: `strip_tool_annotations(text)`
+  + `discover_manuals(root)`. Tag-value SPDX only; other serializations
+  would need their own pass.
+
 ## [0.2.0] — 2026-05-17
 
 ### Added

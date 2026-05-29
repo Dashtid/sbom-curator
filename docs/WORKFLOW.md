@@ -36,9 +36,10 @@ repo root, organized by function:
 
 ```
 artifacts/
-├── manual/      your hand-maintained SPDX SBOMs (the deliverable)
+├── manual/      your hand-maintained SPDX SBOMs (the deliverable, with tool annotations)
 ├── syft/        SPDX-JSON scans, one per release
-└── reports/     change reports and reconcile reports the tool writes
+├── reports/     change reports and reconcile reports the tool writes
+└── finalized/   clean copies of manual SBOMs for delivery (tool annotations stripped)
 ```
 
 `artifacts/` is fully git-ignored, so the SBOMs you drop there stay
@@ -46,8 +47,13 @@ local — important when they describe customer-confidential products.
 On a fresh clone, create the structure once:
 
 ```bash
-mkdir -p artifacts/{manual,syft,reports}
+mkdir -p artifacts/{manual,syft,reports,finalized}
 ```
+
+`manual/` and `finalized/` are two stages of the same artifact: the working
+copy carries `sbom-curator covers-prefix:` and similar tool annotations the
+analysis pipeline needs; the finalized copy is what you actually deliver to
+the regulator, with those operational lines stripped. See section 5 below.
 
 The structure isn't enforced — sbom-curator accepts any path through
 its `--manual`, `--syft`, and `--output-dir` flags. The convention is
@@ -262,6 +268,37 @@ Writes `artifacts/reports/<name>-reconcile.md` with the buckets
 only-in-manual, only-in-Syft, version disagreements, license
 disagreements. `ingest` is built on the same matcher, so the two reports
 never disagree about the underlying facts.
+
+### 5. Finalize — strip tool annotations for delivery
+
+Your working manual SBOM in `artifacts/manual/` accumulates
+`sbom-curator covers-prefix:` (and any future `sbom-curator <key>:`)
+annotations inside `PackageComment` blocks. Those lines are operational
+— useful to the matcher, noise to a regulator. Before submission, run:
+
+```bash
+sbom-curator finalize artifacts/
+```
+
+It reads every `<name>.spdx` in `artifacts/manual/` and writes a clean
+copy to `artifacts/finalized/<name>.spdx`. Same filename, no
+annotations. A `PackageComment` that contained only tool lines is
+removed entirely; one with mixed content (curator notes + tool lines)
+keeps the notes.
+
+For a single file (e.g. you only maintain one SBOM):
+
+```bash
+sbom-curator finalize \
+    --manual artifacts/manual/affinity-6.0.0.spdx \
+    --output artifacts/finalized/affinity-6.0.0.spdx
+```
+
+The strip is text-level — every other byte (formatting, ordering,
+copyright text, ExternalRef lines, license expressions) is preserved
+exactly. The source SBOM is never modified.
+
+Tag-value SPDX only.
 
 ## Worked example
 

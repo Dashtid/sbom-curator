@@ -122,3 +122,4 @@ covers them.
 | PR #27 | `--fail-on` on `ingest` (`added`, `bumped`, `review`, `license`) and `reconcile` (`only-in-syft`, `only-in-manual`, `version`, `license`) — exit 1 when any listed bucket is non-empty, so CI can gate on reconciliation findings |
 | PR #28 | `CHANGELOG.md` + bump to v0.1.0 — first tagged release |
 | PR #31 | Folder-scan mode — `sbom-curator ingest <PATH>` discovers conventional `manual/`/`syft/` pairs and ingests each; `--strict-naming` opt-in for CI; aggregate exit code; per-pair parse-failure tolerance |
+| PR #32 | `finalize` subcommand — strip `sbom-curator <key>:` tool annotations from `PackageComment` blocks; single-file (`--manual` + `--output`) or folder (`<PATH>/manual/` → `<PATH>/finalized/`); namespaced (catches future annotations); text-level edit preserves all other bytes |
