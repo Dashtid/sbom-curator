@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import NamedTuple
 
 import click
 from rich.console import Console
@@ -74,31 +75,26 @@ def ingest(manual: Path, syft: Path, name: str, output_dir: Path,
     modify the manual SBOM.
     """
     gates = _parse_gates(fail_on, _INGEST_GATES)
-    manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
+    result = _run_ingest_pair(manual, syft, name, output_dir, product_prefixes, gates)
+    plan = result.plan
 
-    edit_plan = build_plan(manual_components, syft_components)
-    suggestions = _suggestions_from(manual_components, [a.syft for a in edit_plan.added])
-    report = render_ingest_plan(edit_plan, name=name, suggestions=suggestions)
-    out_path = _write(output_dir, f"{name}-ingest.md", report)
-
-    changed = len(edit_plan.keeps_with_license_change)
+    changed = len(plan.keeps_with_license_change)
     keep_note = f" ({changed} with a license change)" if changed else ""
-    console.print(f"[green][+][/green] wrote {out_path}")
-    console.print(f"[yellow][!][/yellow] added: {len(edit_plan.added)}")
-    console.print(f"[yellow][!][/yellow] bumped: {len(edit_plan.bumped)}")
-    console.print(f"[blue]\\[i][/blue] only in your SBOM: {len(edit_plan.reviews)}")
-    console.print(f"[green][+][/green] unchanged: {len(edit_plan.keeps)}{keep_note}")
-    if edit_plan.covered:
+    console.print(f"[green][+][/green] wrote {result.path}")
+    console.print(f"[yellow][!][/yellow] added: {len(plan.added)}")
+    console.print(f"[yellow][!][/yellow] bumped: {len(plan.bumped)}")
+    console.print(f"[blue]\\[i][/blue] only in your SBOM: {len(plan.reviews)}")
+    console.print(f"[green][+][/green] unchanged: {len(plan.keeps)}{keep_note}")
+    if plan.covered:
         console.print(
-            f"[green][+][/green] covered by family entries: {len(edit_plan.covered)}"
+            f"[green][+][/green] covered by family entries: {len(plan.covered)}"
         )
-    if suggestions:
+    if result.suggestions:
         console.print(
-            f"[blue]\\[i][/blue] {len(suggestions)} suggested annotation(s) — see the report"
+            f"[blue]\\[i][/blue] {len(result.suggestions)} suggested annotation(s) — see the report"
         )
-    hit = _ingest_gate_hits(edit_plan, gates)
-    if hit:
-        console.print(f"[red][-][/red] gate hit: {', '.join(sorted(hit))}")
+    if result.gate_hits:
+        console.print(f"[red][-][/red] gate hit: {', '.join(sorted(result.gate_hits))}")
         raise click.exceptions.Exit(code=1)
 
 
@@ -171,6 +167,39 @@ def lint_cmd(path: Path) -> None:
     )
     if errors:
         raise click.exceptions.Exit(code=2)
+
+
+class _IngestPairResult(NamedTuple):
+    path: Path
+    plan: EditPlan
+    suggestions: tuple[CoversPrefixSuggestion, ...]
+    gate_hits: set[str]
+
+
+def _run_ingest_pair(
+    manual: Path,
+    syft: Path,
+    name: str,
+    output_dir: Path,
+    product_prefixes: tuple[str, ...],
+    gates: set[str],
+) -> _IngestPairResult:
+    """Parse a manual/scan pair, build the edit plan, write the report.
+
+    Returns the report path, the plan, the covers-prefix suggestions, and
+    any ``--fail-on`` gate bucket names that fired.
+    """
+    manual_components, syft_components = _load_inputs(manual, syft, product_prefixes)
+    edit_plan = build_plan(manual_components, syft_components)
+    suggestions = _suggestions_from(manual_components, [a.syft for a in edit_plan.added])
+    report = render_ingest_plan(edit_plan, name=name, suggestions=suggestions)
+    out_path = _write(output_dir, f"{name}-ingest.md", report)
+    return _IngestPairResult(
+        path=out_path,
+        plan=edit_plan,
+        suggestions=suggestions,
+        gate_hits=_ingest_gate_hits(edit_plan, gates),
+    )
 
 
 def _suggestions_from(
